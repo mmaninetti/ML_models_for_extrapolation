@@ -36,9 +36,6 @@ X, y, categorical_indicator, attribute_names = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute)
 
 
-projection_depth
-
-
 # activate pandas conversion for rpy2
 pandas2ri.activate()
 
