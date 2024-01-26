@@ -173,7 +173,7 @@ for kernel in kernels:
         y_pred = model(X_val_tensor)
 
     # Calculate RMSE
-    RMSE = torch.sqrt(torch.mean(torch.square(torch.tensor(y_val.values) - y_pred.mean)))
+    RMSE = torch.sqrt(torch.mean(torch.square(y_val_tensor - y_pred.mean)))
 
     # Update the best kernel if the current kernel has a lower RMSE
     if RMSE < best_RMSE:
@@ -222,7 +222,7 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
     y_pred = model(X_test_tensor)
 
 # Calculate RMSE
-RMSE_GP = torch.sqrt(torch.mean(torch.square(torch.tensor(y_test.values) - y_pred.mean)))
+RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
 print("RMSE GP: ", RMSE_GP)
 
 # #### Define train function
