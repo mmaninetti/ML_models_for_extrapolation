@@ -221,9 +221,6 @@ mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
 if torch.cuda.is_available():
     model = model.cuda()
-    likelihood = likelihood.cuda()
-    mll = mll.cuda()
-    kernel = kernel.cuda()
 
 # Train the model
 train(model,X_train_tensor,y_train_tensor)
@@ -640,8 +637,13 @@ def engressor_NN(trial):
               'num_layer': trial.suggest_int('num_layer', 2, 5),
               'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),}
     params['noise_dim']=params['hidden_dim']
+
+    # Check if CUDA is available and if so, move the tensors and the model to the GPU
+    if torch.cuda.is_available():
+        engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000).cuda()
+    else:
+        engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
     
-    engressor_model=engression(torch.Tensor(np.array(X_train_)), torch.Tensor(np.array(y_train_).reshape(-1,1)), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
     # Generate a sample from the engression model for each data point
     y_val_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_val.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_val))]
 
@@ -697,8 +699,6 @@ y_train_tensor = torch.Tensor(np.array(y_train).reshape(-1,1))
 
 # Check if CUDA is available and if so, move the tensors and the model to the GPU
 if torch.cuda.is_available():
-    X_train_tensor = X_train_tensor.cuda()
-    y_train_tensor = y_train_tensor.cuda()
     engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000).cuda()
 else:
     engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
