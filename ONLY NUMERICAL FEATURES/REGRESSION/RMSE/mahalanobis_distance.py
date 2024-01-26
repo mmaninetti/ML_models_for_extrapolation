@@ -146,7 +146,7 @@ def train(model,X_train_tensor,y_train_tensor):
 for kernel in kernels:
     # Initialize the Gaussian Process model and likelihood
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, kernel)
+    model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -273,7 +273,6 @@ def MLP_opt(trial):
 
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
-        criterion = criterion.cuda()
     
     train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
