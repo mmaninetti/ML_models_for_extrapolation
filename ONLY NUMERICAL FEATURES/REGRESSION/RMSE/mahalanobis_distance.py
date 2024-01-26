@@ -36,7 +36,7 @@ X, y, categorical_indicator, attribute_names = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute)
 
 # Set the random seed for reproducibility
-N_TRIALS=100
+N_TRIALS=1 #100
 N_SAMPLES=100
 seed=10
 np.random.seed(seed)
@@ -277,9 +277,8 @@ def MLP_opt(trial):
     train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,)).detach().numpy()
-
-    RMSE_MLP=np.sqrt(np.mean((y_val-y_val_hat_MLP)**2))
+    y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,))
+    RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_MLP)))
 
     return RMSE_MLP
 
@@ -308,9 +307,8 @@ loss_Adam=[]
 train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,)).detach().numpy()
-
-RMSE_MLP=np.sqrt(np.mean((y_test-y_test_hat_MLP)**2))
+y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,))
+RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_MLP)))
 print("RMSE MLP: ", RMSE_MLP)
 
 # #### ResNet
@@ -351,9 +349,8 @@ def ResNet_opt(trial):
     train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,)).detach().numpy()
-
-    RMSE_ResNet=np.sqrt(np.mean((y_val-y_val_hat_ResNet)**2))
+    y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,))
+    RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_ResNet)))
 
     return RMSE_ResNet
 
@@ -385,9 +382,8 @@ loss_Adam=[]
 train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,)).detach().numpy()
-
-RMSE_ResNet=np.sqrt(np.mean((y_test-y_test_hat_ResNet)**2))
+y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,))
+RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_ResNet)))
 print("RMSE ResNet: ", RMSE_ResNet)
 
 # #### FFTransformer
@@ -455,9 +451,8 @@ def FTTrans_opt(trial):
     train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,)).detach().numpy()
-
-    RMSE_FTTrans=np.sqrt(np.mean((y_val-y_val_hat_FTTrans)**2))
+    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor).reshape(-1,))
+    RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
     return RMSE_FTTrans
 
@@ -493,9 +488,8 @@ loss_Adam=[]
 train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,)).detach().numpy()
-
-RMSE_FTTrans=np.sqrt(np.mean((y_test-y_test_hat_FTTrans)**2))
+y_test_hat_FTTrans = (FTTrans_model(X_test_tensor).reshape(-1,))
+RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_FTTrans)))
 print("RMSE FTTrans: ", RMSE_FTTrans)
 
 # #### Boosted trees, random forest, engression, linear regression
