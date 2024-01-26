@@ -5,9 +5,7 @@ import setuptools
 import openml
 from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
-import lightgbmlss
 import optuna
-from scipy.spatial.distance import mahalanobis
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.gaussian_process.kernels import Matern
@@ -18,13 +16,9 @@ from scipy.spatial.distance import mahalanobis
 from scipy.stats import norm
 from sklearn.metrics import mean_squared_error
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
-from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
 import tqdm.notebook as tqdm
-from lightgbmlss.model import *
-from lightgbmlss.distributions.Gaussian import *
-from drf import drf
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -49,31 +43,74 @@ torch.cuda.manual_seed_all(seed)
 random.seed(seed)
 
 
+# New new implementation
+N_CLUSTERS=20
 # calculate the mean and covariance matrix of the dataset
 mean = np.mean(X, axis=0)
 cov = np.cov(X.T)
+scaler = StandardScaler()
 
-# calculate the Mahalanobis distance for each data point
-mahalanobis_dist = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X.values]
+# transform data to compute the clusters
+X_scaled = scaler.fit_transform(X)
 
-mahalanobis_dist=pd.Series(mahalanobis_dist,index=X.index)
-far_index=mahalanobis_dist.index[np.where(mahalanobis_dist>=np.quantile(mahalanobis_dist,0.8))[0]]
-close_index=mahalanobis_dist.index[np.where(mahalanobis_dist<np.quantile(mahalanobis_dist,0.8))[0]]
+kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_scaled)
+distances=[]
+mahalanobis_dist=[]
+counts=[]
+ideal_len=len(kmeans.labels_)/5
+for i in np.arange(N_CLUSTERS):
+    distances.append(np.abs(np.sum(kmeans.labels_==i)-ideal_len))
+    counts.append(np.sum(kmeans.labels_==i))
+    mean_k= np.mean(X.loc[kmeans.labels_==i,:], axis=0)
+    mahalanobis_dist.append(mahalanobis(mean_k, mean, np.linalg.inv(cov)))
+
+dist_df=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist, 'count': counts}, index=np.arange(N_CLUSTERS))
+dist_df=dist_df.sort_values('mahalanobis_dist', ascending=False)
+dist_df['cumulative_count']=dist_df['count'].cumsum()
+dist_df['abs_diff']=np.abs(dist_df['cumulative_count']-ideal_len)
+
+final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
+labelss=dist_df.index[0:final+1].to_list()
+labels=pd.Series(kmeans.labels_).isin(labelss)
+labels.index=X.index
+close_index=labels.index[np.where(labels==False)[0]]
+far_index=labels.index[np.where(labels==True)[0]]
 
 X_train = X.loc[close_index,:]
 X_test = X.loc[far_index,:]
 y_train = y.loc[close_index]
 y_test = y.loc[far_index]
 
-mean = np.mean(X_train, axis=0)
-cov = np.cov(X_train.T)
+# calculate the mean and covariance matrix of the dataset
+mean_ = np.mean(X_train, axis=0)
+cov_ = np.cov(X_train.T)
+scaler_ = StandardScaler()
 
-# calculate the Mahalanobis distance for each data point
-mahalanobis_dist_ = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_train.values]
+# transform data to compute the clusters
+X_train_scaled = scaler_.fit_transform(X_train)
 
-mahalanobis_dist_=pd.Series(mahalanobis_dist_,index=X_train.index)
-far_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_>=np.quantile(mahalanobis_dist_,0.8))[0]]
-close_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_<np.quantile(mahalanobis_dist_,0.8))[0]]
+kmeans_ = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_train_scaled)
+distances_=[]
+counts_=[]
+mahalanobis_dist_=[]
+ideal_len_=len(kmeans_.labels_)/5
+for i in np.arange(N_CLUSTERS):
+    distances_.append(np.abs(np.sum(kmeans_.labels_==i)-ideal_len_))
+    counts_.append(np.sum(kmeans_.labels_==i))
+    mean_k_= np.mean(X_train.loc[kmeans_.labels_==i,:], axis=0)
+    mahalanobis_dist_.append(mahalanobis(mean_k_, mean_, np.linalg.inv(cov_)))
+
+dist_df_=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist_, 'count': counts_}, index=np.arange(N_CLUSTERS))
+dist_df_=dist_df_.sort_values('mahalanobis_dist', ascending=False)
+dist_df_['cumulative_count']=dist_df_['count'].cumsum()
+dist_df_['abs_diff']=np.abs(dist_df_['cumulative_count']-ideal_len_)
+
+final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
+labelss_=dist_df_.index[0:final_+1].to_list()
+labels_=pd.Series(kmeans_.labels_).isin(labelss_)
+labels_.index=X_train.index
+close_index_=labels_.index[np.where(labels_==False)[0]]
+far_index_=labels_.index[np.where(labels_==True)[0]]
 
 X_train_ = X_train.loc[close_index_,:]
 X_val = X_train.loc[far_index_,:]
@@ -129,7 +166,7 @@ kernels = [
     gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
 ]
 
-best_crps = float('inf')
+best_RMSE = float('inf')
 best_kernel = None
 
 def train(model,X_train_tensor,y_train_tensor):
@@ -172,19 +209,12 @@ for kernel in kernels:
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
         y_pred = model(X_val_tensor)
 
-    # Calculate CRPS
-    y_pred_np = y_pred.mean.numpy().flatten()
-    y_pred_std_np = y_pred.stddev.numpy().flatten()
+    # Calculate RMSE
+    RMSE = torch.sqrt(torch.mean(torch.square(torch.tensor(y_val.values) - y_pred.mean)))
 
-    # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_val_np))]
-
-    # Calculate the mean CRPS
-    mean_crps = np.mean(crps_values)
-
-    # Update the best kernel if the current kernel has a lower CRPS
-    if mean_crps < best_crps:
-        best_crps = mean_crps
+    # Update the best kernel if the current kernel has a lower RMSE
+    if RMSE < best_RMSE:
+        best_RMSE = RMSE
         best_kernel = kernel
 
 
@@ -228,18 +258,9 @@ likelihood.eval()
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
     y_pred = model(X_test_tensor)
 
-# Calculate CRPS
-y_pred_np = y_pred.mean.numpy().flatten()
-y_pred_std_np = y_pred.stddev.numpy().flatten()
-
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_test_np))]
-
-# Calculate the mean CRPS
-CRPS_GP = np.mean(crps_values)
-
-# Update the best kernel if the current kernel has a lower CRPS
-print('CRPS_GP: ', CRPS_GP)
+# Calculate RMSE
+RMSE_GP = torch.sqrt(torch.mean(torch.square(torch.tensor(y_test.values) - y_pred.mean)))
+print("RMSE GP: ", RMSE_GP)
 
 # #### Define train function
 
@@ -300,16 +321,9 @@ def MLP_opt(trial):
     # Point prediction
     y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,)).detach().numpy()
 
-    # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_val - y_val_hat_MLP)
+    RMSE_MLP=np.sqrt(np.mean((y_val-y_val_hat_MLP)**2))
 
-    # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_MLP[i], sig=std_dev_error) for i in range(len(y_val_hat_MLP))]
-
-    # Calculate the mean CRPS
-    mean_crps = np.mean(crps_values)
-
-    return mean_crps
+    return RMSE_MLP
 
 sampler_MLP = optuna.samplers.TPESampler(seed=seed)
 study_MLP = optuna.create_study(sampler=sampler_MLP, direction='minimize')
@@ -338,19 +352,8 @@ train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_te
 # Point prediction
 y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,)).detach().numpy()
 
-# Estimate standard deviation of the prediction error
-std_dev_error = np.std(y_test - y_test_hat_MLP)
-
-# Create a normal distribution for each prediction
-pred_distributions = [norm(loc=y_test_hat_MLP[i], scale=std_dev_error) for i in range(len(y_test_hat_MLP))]
-
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_MLP[i], sig=std_dev_error) for i in range(len(y_test_hat_MLP))]
-
-# Calculate the mean CRPS
-crps_MLP = np.mean(crps_values)
-
-print("CRPS MLP: ", crps_MLP)
+RMSE_MLP=np.sqrt(np.mean((y_test-y_test_hat_MLP)**2))
+print("RMSE MLP: ", RMSE_MLP)
 
 # #### ResNet
 d_out = 1  
@@ -392,16 +395,9 @@ def ResNet_opt(trial):
     # Point prediction
     y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,)).detach().numpy()
 
-    # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_val - y_val_hat_ResNet)
+    RMSE_ResNet=np.sqrt(np.mean((y_val-y_val_hat_ResNet)**2))
 
-    # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_ResNet[i], sig=std_dev_error) for i in range(len(y_val_hat_ResNet))]
-
-    # Calculate the mean CRPS
-    crps_ResNet = np.mean(crps_values)
-
-    return crps_ResNet
+    return RMSE_ResNet
 
 sampler_ResNet = optuna.samplers.TPESampler(seed=seed)
 study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='minimize')
@@ -433,16 +429,9 @@ train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train
 # Point prediction
 y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,)).detach().numpy()
 
-# Estimate standard deviation of the prediction error
-std_dev_error = np.std(y_test - y_test_hat_ResNet)
+RMSE_ResNet=np.sqrt(np.mean((y_test-y_test_hat_ResNet)**2))
+print("RMSE ResNet: ", RMSE_ResNet)
 
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_ResNet[i], sig=std_dev_error) for i in range(len(y_test_hat_ResNet))]
-
-# Calculate the mean CRPS
-crps_ResNet = np.mean(crps_values)
-
-print("CRPS ResNet: ", crps_ResNet)
 # #### FFTransformer
 
 def train_trans(model,criterion,loss_Adam,optimizer,training_iterations,X_train_tensor,y_train_tensor):
@@ -510,16 +499,9 @@ def FTTrans_opt(trial):
     # Point prediction
     y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,)).detach().numpy()
 
-    # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_val - y_val_hat_FTTrans)
+    RMSE_FTTrans=np.sqrt(np.mean((y_val-y_val_hat_FTTrans)**2))
 
-    # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_val_hat_FTTrans))]
-
-    # Calculate the mean CRPS
-    crps_FTTrans= np.mean(crps_values)
-
-    return crps_FTTrans
+    return RMSE_FTTrans
 
 sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
 study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='minimize')
@@ -555,74 +537,49 @@ train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,
 # Point prediction
 y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,)).detach().numpy()
 
-# Estimate standard deviation of the prediction error
-std_dev_error = np.std(y_test - y_test_hat_FTTrans)
-
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_test_hat_FTTrans))]
-
-# Calculate the mean CRPS
-crps_FTTrans= np.mean(crps_values)
-
-print("CRPS FTTrans: ", crps_FTTrans)
+RMSE_FTTrans=np.sqrt(np.mean((y_test-y_test_hat_FTTrans)**2))
+print("RMSE FTTrans: ", RMSE_FTTrans)
 
 # #### Boosted trees, random forest, engression, linear regression
-# Create lgb dataset
-dtrain_ = lgb.Dataset(torch.tensor(X_train_.values, dtype=torch.float32).clone().detach(), label=y_train_.values)
 
 def boosted(trial):
 
-    params = {
-        'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.5, log=True),
-        'n_estimators': trial.suggest_int('n_estimators', 100, 500),
-        'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
-        'max_depth': trial.suggest_int('max_depth', 1, 30),
-        'min_child_samples': trial.suggest_int('min_child_samples', 10, 100),
-    }
-    opt_params = params.copy()
-    n_rounds = opt_params["n_estimators"]
-    del opt_params["n_estimators"]
-    opt_params['feature_pre_filter']=False
+    params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
+              'n_estimators': trial.suggest_int('n_estimators', 100, 500),
+              'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
+              'max_depth': trial.suggest_int('max_depth', 1, 30),
+              'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
+    
+    boosted_tree_model=lgbm.LGBMRegressor(**params)
+    boosted_tree_model.fit(X_train_, y_train_)
+    y_val_hat_boost=boosted_tree_model.predict(X_val)
+    RMSE_boost=np.sqrt(np.mean((y_val-y_val_hat_boost)**2))
 
-    # Use LightGBMLossGuideRegressor for distributional prediction
-    boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="nll"))
-    boosted_tree_model.train(opt_params, dtrain_, num_boost_round=n_rounds)
+    return RMSE_boost
 
-    # Predict both the mean and standard deviation
-    pred_params=boosted_tree_model.predict(X_val, pred_type="parameters")
-    y_val_hat_boost=pred_params['loc']
-    y_val_hat_std = pred_params['scale']
-
-    # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_boost[i], sig=y_val_hat_std[i]) for i in range(len(y_val))]
-
-    # Return the mean CRPS as the objective to be minimized
-    return np.mean(crps_values)
-
-sampler_boost = optuna.samplers.TPESampler(seed=seed)
+sampler_boost = optuna.samplers.TPESampler(seed=10)
 study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
 study_boost.optimize(boosted, n_trials=N_TRIALS)
+boosted_model=lgbm.LGBMRegressor(**study_boost.best_params)
 
 def rf(trial):
-    params = {'num_trees': trial.suggest_int('num_trees', 100, 500),
-          'mtry': trial.suggest_int('mtry', 1, 30),
-          'min_node_size': trial.suggest_int('min_node_size', 10, 100)}
+
+    params = {'n_estimators': trial.suggest_int('n_estimators', 100, 500),
+              'max_depth': trial.suggest_int('max_depth', 1, 30),
+              'max_features': trial.suggest_int('max_features', 1, 30),
+              'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100)}
     
-    drf_model = drf(**params)
-    drf_model.fit(X_train_, y_train_)
-    
-    # Generate a sample from the drf model for each data point
-    y_val_hat=drf_model.predict(newdata = X_val, functional = "quantile", quantiles=list(np.random.uniform(0,1,N_SAMPLES)))
+    rf_model=RandomForestRegressor(**params)
+    rf_model.fit(X_train_, y_train_)
+    y_val_hat_rf=rf_model.predict(X_val)
+    RMSE_rf=np.sqrt(np.mean((y_val-y_val_hat_rf)**2))
 
-    # Calculate the CRPS for each prediction
-    crps_values = [crps_ensemble(y_val_np[i], y_val_hat.quantile[i].reshape(-1)) for i in range(len(y_val_np))]
+    return RMSE_rf
 
-    # Return the mean CRPS as the objective to be minimized
-    return np.mean(crps_values)
-
-sampler_drf = optuna.samplers.TPESampler(seed=seed)
-study_drf = optuna.create_study(sampler=sampler_drf, direction='minimize')
-study_drf.optimize(rf, n_trials=N_TRIALS)
+sampler_rf = optuna.samplers.TPESampler(seed=10)
+study_rf = optuna.create_study(sampler=sampler_rf, direction='minimize')
+study_rf.optimize(rf, n_trials=N_TRIALS)
+rf_model=RandomForestRegressor(**study_rf.best_params)
 
 
 def engressor_NN(trial):
@@ -640,52 +597,29 @@ def engressor_NN(trial):
         engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
     
     # Generate a sample from the engression model for each data point
-    y_val_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_val.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_val))]
+    y_val_hat_engression=engressor_model.predict(torch.Tensor(np.array(X_val)), target="mean")
 
-    # Calculate the CRPS for each prediction
-    crps_values = [crps_ensemble(y_val_np[i], np.array(y_val_hat_engression_samples[i]).reshape(-1,)) for i in range(len(y_val_np))]
+    RMSE_engression=np.sqrt((((torch.Tensor(np.array(y_val).reshape(-1,1)))-y_val_hat_engression)**2).mean(axis=0))
 
-    return np.mean(crps_values)
+    return RMSE_engression
 
 sampler_engression = optuna.samplers.TPESampler(seed=seed)
 study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')
 study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
 
 
-dtrain = lgb.Dataset(torch.tensor(X_train.values, dtype=torch.float32).clone().detach(), label=y_train.values)
-opt_params = study_boost.best_params.copy()
-n_rounds = opt_params["n_estimators"]
-del opt_params["n_estimators"]
-opt_params['feature_pre_filter']=False
-# Use LightGBMLossGuideRegressor for distributional prediction
-boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="nll"))
-boosted_tree_model.train(opt_params, dtrain, num_boost_round=n_rounds)
-# Predict both the mean and standard deviation
-pred_params=boosted_tree_model.predict(X_test, pred_type="parameters")
-y_test_hat_boost=pred_params['loc']
-y_test_hat_std = pred_params['scale']
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_boost[i], sig=y_test_hat_std[i]) for i in range(len(y_test))]
-# Return the mean CRPS as the objective to be minimized
-CRPS_boosted=np.mean(crps_values)
+boosted_model.fit(X_train, y_train)
+y_test_hat_boosted=boosted_model.predict(X_test)
+RMSE_boosted=np.sqrt(np.mean((y_test-y_test_hat_boosted)**2))
 
-drf_model=drf(**study_drf.best_params)
-drf_model.fit(X_train, y_train)
-# Generate a sample from the drf model for each data point
-y_test_hat_drf=drf_model.predict(newdata = X_test, functional = "quantile", quantiles=list(np.random.uniform(0,1,N_SAMPLES)))
-# Calculate the CRPS for each prediction
-crps_values = [crps_ensemble(y_test_np[i], y_test_hat_drf.quantile[i].reshape(-1)) for i in range(len(y_test_np))]
-# Return the mean CRPS as the objective to be minimized
-CRPS_rf=np.mean(crps_values)
+rf_model.fit(X_train, y_train)
+y_test_hat_rf=rf_model.predict(X_test)
+RMSE_rf=np.sqrt(np.mean((y_test-y_test_hat_rf)**2))
 
 lin_reg=LinearRegression()
 lin_reg.fit(X_train, y_train)
 y_test_hat_linreg=lin_reg.predict(X_test)
-# Calculate the standard deviation of the residuals
-std_dev = np.std(y_test - y_test_hat_linreg)
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_linreg[i], sig=std_dev) for i in range(len(y_test_np))]
-CRPS_linreg = np.mean(crps_values)
+RMSE_linreg=np.sqrt(np.mean((y_test-y_test_hat_linreg)**2))
 
 params=study_engression.best_params
 params['noise_dim']=params['hidden_dim']
@@ -697,21 +631,18 @@ if torch.cuda.is_available():
     engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000).cuda()
 else:
     engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
-# Generate a sample from the engression model for each data point
-y_test_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_test.values[i]])).cuda() if torch.cuda.is_available() else torch.Tensor(np.array([X_test.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_test))]
-# Calculate the CRPS for each prediction
-crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i]).reshape(-1,)) for i in range(len(y_test_np))]
-CRPS_engression=np.mean(crps_values)
+y_test_hat_engression=engressor_model.predict(torch.Tensor(np.array(X_test)), target="mean")
+RMSE_engression=np.sqrt((((torch.Tensor(np.array(y_test).reshape(-1,1)))-y_test_hat_engression)**2).mean(axis=0))
 
-print("CRPS linear regression: ",CRPS_linreg)
-print("CRPS boosted trees", CRPS_boosted)
-print("CRPS random forest", CRPS_rf)
-print("CRPS engression", CRPS_engression)
+print("RMSE linear regression: ",RMSE_linreg)
+print("RMSE boosted trees", RMSE_boosted)
+print("RMSE random forest", RMSE_rf)
+print("RMSE engression", RMSE_engression)
 
-crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'boosted_trees': CRPS_boosted, 'drf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression}  # Add all your methods here
+RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'drf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression}  # Add all your methods here
 
 # Convert the dictionary to a DataFrame
-df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
+df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
 
 # Save the DataFrame to a CSV file
-df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv', index=False)
+df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_RMSE_results.csv', index=False)
