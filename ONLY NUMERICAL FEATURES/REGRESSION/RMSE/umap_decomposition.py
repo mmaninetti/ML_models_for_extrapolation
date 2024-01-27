@@ -20,6 +20,7 @@ import gpytorch
 import tqdm.auto as tqdm
 from sklearn.metrics.pairwise import euclidean_distances
 import os
+from pygam import LinearGAM, s, f
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -594,7 +595,43 @@ print("RMSE boosted trees", RMSE_boosted)
 print("RMSE random forest", RMSE_rf)
 print("RMSE engression", RMSE_engression)
 
-RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression}  # Add all your methods here
+#### GAM model
+def gam_model(trial):
+
+    # Define the hyperparameters to optimize
+    params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
+              'lam': trial.suggest_loguniform('lam', 1e-3, 1)}
+
+    # Create and train the model
+    gam = LinearGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
+
+    # Predict on the validation set and calculate the RMSE
+    y_val_hat_gam = gam.predict(X_val)
+    RMSE_gam = np.sqrt(np.mean((y_val - y_val_hat_gam) ** 2))
+
+    return RMSE_gam
+
+# Create the sampler and study
+sampler_gam = optuna.samplers.TPESampler(seed=seed)
+study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
+
+# Optimize the model
+study_gam.optimize(gam_model, n_trials=N_TRIALS)
+
+# Create the final model with the best parameters
+best_params = study_gam.best_params
+final_gam_model = LinearGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
+
+# Fit the model
+final_gam_model.fit(X_train, y_train)
+
+# Predict on the test set
+y_test_hat_gam = final_gam_model.predict(X_test)
+# Calculate the RMSE
+RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
+print("RMSE GAM: ", RMSE_gam)
+
+RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression, 'GAM': RMSE_gam} 
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
