@@ -451,7 +451,7 @@ def FTTrans_opt(trial):
     train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor).reshape(-1,))
+    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,))
     RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
     return RMSE_FTTrans
@@ -488,7 +488,7 @@ loss_Adam=[]
 train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_FTTrans = (FTTrans_model(X_test_tensor).reshape(-1,))
+y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,))
 RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_FTTrans)))
 print("RMSE FTTrans: ", RMSE_FTTrans)
 
