@@ -42,6 +42,7 @@ X, y, categorical_indicator, attribute_names = dataset.get_data(
 N_TRIALS=100
 N_SAMPLES=100
 seed=10
+torch.cuda.manual_seed_all(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
