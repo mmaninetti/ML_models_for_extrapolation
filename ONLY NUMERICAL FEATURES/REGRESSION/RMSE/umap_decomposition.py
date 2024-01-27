@@ -19,6 +19,7 @@ import random
 import gpytorch
 import tqdm.auto as tqdm
 from sklearn.metrics.pairwise import euclidean_distances
+import os
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -597,6 +598,9 @@ RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans'
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
+
+# Create the directory if it doesn't exist
+os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
 
 # Save the DataFrame to a CSV file
 df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_RMSE_results.csv', index=False)

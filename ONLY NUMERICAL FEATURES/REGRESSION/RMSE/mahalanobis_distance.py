@@ -21,6 +21,7 @@ from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
 import tqdm.auto as tqdm
+import os
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -593,6 +594,9 @@ RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans'
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
+
+# Create the directory if it doesn't exist
+os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
 
 # Save the DataFrame to a CSV file
 df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv', index=False)
