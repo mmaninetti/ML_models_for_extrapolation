@@ -102,7 +102,7 @@ if torch.cuda.is_available():
 # Create flattened versions of the data
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
-
+'''
 #### Gaussian process
 class ExactGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood, kernel):
@@ -491,7 +491,7 @@ train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,
 # Point prediction
 y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,))
 RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_FTTrans)))
-print("RMSE FTTrans: ", RMSE_FTTrans)
+print("RMSE FTTrans: ", RMSE_FTTrans)'''
 
 # #### Boosted trees, random forest, engression, linear regression
 
