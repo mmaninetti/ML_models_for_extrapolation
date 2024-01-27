@@ -37,7 +37,7 @@ X, y, categorical_indicator, attribute_names = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute)
 
 # Set the random seed for reproducibility
-N_TRIALS=1 #100
+N_TRIALS=100
 N_SAMPLES=100
 seed=10
 torch.cuda.manual_seed_all(seed)
@@ -590,7 +590,7 @@ print("RMSE boosted trees", RMSE_boosted)
 print("RMSE random forest", RMSE_rf)
 print("RMSE engression", RMSE_engression)
 
-RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'drf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression}  # Add all your methods here
+RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression}  # Add all your methods here
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
