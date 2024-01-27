@@ -17,7 +17,7 @@ from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
-import tqdm.notebook as tqdm
+import tqdm.auto as tqdm
 from sklearn.metrics.pairwise import euclidean_distances
 
 SUITE_ID = 336 # Regression on numerical features
@@ -281,9 +281,8 @@ def MLP_opt(trial):
     train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,)).detach().numpy()
-
-    RMSE_MLP=np.sqrt(np.mean((y_val-y_val_hat_MLP)**2))
+    y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,))
+    RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_MLP)))
 
     return RMSE_MLP
 
@@ -312,9 +311,8 @@ loss_Adam=[]
 train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,)).detach().numpy()
-
-RMSE_MLP=np.sqrt(np.mean((y_test-y_test_hat_MLP)**2))
+y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,))
+RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_MLP)))
 print("RMSE MLP: ", RMSE_MLP)
 
 # #### ResNet
@@ -355,9 +353,8 @@ def ResNet_opt(trial):
     train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,)).detach().numpy()
-
-    RMSE_ResNet=np.sqrt(np.mean((y_val-y_val_hat_ResNet)**2))
+    y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,))
+    RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_ResNet)))
 
     return RMSE_ResNet
 
@@ -389,9 +386,8 @@ loss_Adam=[]
 train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,)).detach().numpy()
-
-RMSE_ResNet=np.sqrt(np.mean((y_test-y_test_hat_ResNet)**2))
+y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,))
+RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_ResNet)))
 print("RMSE ResNet: ", RMSE_ResNet)
 
 # #### FFTransformer
@@ -459,9 +455,8 @@ def FTTrans_opt(trial):
     train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,)).detach().numpy()
-
-    RMSE_FTTrans=np.sqrt(np.mean((y_val-y_val_hat_FTTrans)**2))
+    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,))
+    RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
     return RMSE_FTTrans
 
@@ -475,7 +470,7 @@ FTTrans_model = FTTransformer(
     cat_cardinalities=[],
     d_out=d_out,
     n_blocks=study_FTTrans.best_params['n_blocks'],
-    d_block=study_FTTrans.best_params['d_block'],
+    d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
     attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
     attention_dropout=study_FTTrans.best_params['attention_dropout'],
     ffn_d_hidden=None,
@@ -497,12 +492,12 @@ loss_Adam=[]
 train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,)).detach().numpy()
-
-RMSE_FTTrans=np.sqrt(np.mean((y_test-y_test_hat_FTTrans)**2))
+y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,))
+RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_FTTrans)))
 print("RMSE FTTrans: ", RMSE_FTTrans)
 
 # #### Boosted trees, random forest, engression, linear regression
+
 def boosted(trial):
 
     params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
