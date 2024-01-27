@@ -20,7 +20,7 @@ from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
-import tqdm.notebook as tqdm
+import tqdm.auto as tqdm
 from lightgbmlss.model import *
 from lightgbmlss.distributions.Gaussian import *
 from drf import drf
@@ -570,7 +570,7 @@ FTTrans_model = FTTransformer(
     cat_cardinalities=[],
     d_out=d_out,
     n_blocks=study_FTTrans.best_params['n_blocks'],
-    d_block=study_FTTrans.best_params['d_block'],
+    d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
     attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
     attention_dropout=study_FTTrans.best_params['attention_dropout'],
     ffn_d_hidden=None,
