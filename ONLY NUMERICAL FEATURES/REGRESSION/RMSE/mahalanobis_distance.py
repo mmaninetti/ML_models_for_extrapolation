@@ -20,7 +20,7 @@ from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
-import tqdm.notebook as tqdm
+import tqdm.auto as tqdm
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
