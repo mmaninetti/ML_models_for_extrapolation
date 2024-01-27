@@ -20,6 +20,7 @@ from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
 import tqdm.auto as tqdm
+import os
 
 import rpy2.robjects as robjects
 from rpy2.robjects import pandas2ri
@@ -598,6 +599,9 @@ RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans'
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
+
+# Create the directory if it doesn't exist
+os.makedirs('RESULTS/SPATIAL_DEPTH', exist_ok=True)
 
 # Save the DataFrame to a CSV file
 df.to_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_RMSE_results.csv', index=False)
