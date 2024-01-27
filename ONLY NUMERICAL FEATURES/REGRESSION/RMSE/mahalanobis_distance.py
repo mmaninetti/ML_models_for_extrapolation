@@ -544,9 +544,10 @@ def engressor_NN(trial):
     params['noise_dim']=params['hidden_dim']
 
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
-    engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
     if torch.cuda.is_available():
-        engressor_model=engressor_model.cuda()
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, device="cuda")
+    else: 
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
     
     # Generate a sample from the engression model for each data point
     y_val_hat_engression=engressor_model.predict(X_val_tensor, target="mean")
@@ -575,9 +576,10 @@ RMSE_linreg=np.sqrt(np.mean((y_test-y_test_hat_linreg)**2))
 params=study_engression.best_params
 params['noise_dim']=params['hidden_dim']
 # Check if CUDA is available and if so, move the tensors and the model to the GPU
-engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
 if torch.cuda.is_available():
-    engressor_model=engressor_model.cuda()
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, device="cuda")
+else: 
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
 y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
 RMSE_engression=torch.sqrt(torch.mean(torch.square(y_test_tensor.reshape(-1,1) - y_test_hat_engression)))
 
