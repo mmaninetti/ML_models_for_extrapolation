@@ -41,6 +41,7 @@ X, y, categorical_indicator, attribute_names = dataset.get_data(
 N_TRIALS=100
 N_SAMPLES=100
 PATIENCE=40
+N_EPOCHS=300
 seed=10
 torch.cuda.manual_seed_all(seed)
 np.random.seed(seed)
@@ -313,7 +314,7 @@ def MLP_opt(trial):
     d_block=d_block,
     dropout=dropout,
     )
-    n_epochs=300
+    n_epochs=N_EPOCHS
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -323,7 +324,7 @@ def MLP_opt(trial):
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=True)
+    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
     train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
 
     # Point prediction
@@ -347,14 +348,14 @@ MLP_model = MLP(
 if torch.cuda.is_available():
     MLP_model = MLP_model.cuda()
     
-n_epochs=300
+n_epochs=N_EPOCHS
 learning_rate=study_MLP.best_params['learning_rate']
 weight_decay=study_MLP.best_params['weight_decay']
 optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-early_stopping = EarlyStopping(patience=PATIENCE, verbose=True)
+early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
 train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor, early_stopping)
 
 # Point prediction
@@ -390,14 +391,14 @@ def ResNet_opt(trial):
     )
     if torch.cuda.is_available():
         ResNet_model = ResNet_model.cuda()
-    n_epochs=300
+    n_epochs=N_EPOCHS
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
     loss_Adam=[]
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=True)
+    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
     train(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
 
     # Point prediction
@@ -424,14 +425,14 @@ ResNet_model = ResNet(
 if torch.cuda.is_available():
     ResNet_model = ResNet_model.cuda()
 
-n_epochs=300
+n_epochs=N_EPOCHS
 learning_rate=study_ResNet.best_params['learning_rate']
 weight_decay=study_ResNet.best_params['weight_decay']
 optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-early_stopping = EarlyStopping(patience=PATIENCE, verbose=True)
+early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
 train(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor, early_stopping)
 
 # Point prediction
@@ -461,7 +462,7 @@ def train_trans(model, criterion, loss_Adam, optimizer, training_iterations, X_t
         torch.cuda.empty_cache()
 
         # validate the model 
-        y_val_hat = model(X_val_tensor).reshape(-1,)
+        y_val_hat = model(X_val_tensor, None).reshape(-1,)
         val_loss = criterion(y_val_hat, y_val_tensor)
 
         # check if early stopping condition is met
@@ -505,14 +506,14 @@ def FTTrans_opt(trial):
     if torch.cuda.is_available():
         FTTrans_model = FTTrans_model.cuda()
 
-    n_epochs=300
+    n_epochs=N_EPOCHS
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
     loss_Adam=[]
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=True)
+    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
     train_trans(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
 
     # Point prediction
@@ -543,14 +544,14 @@ FTTrans_model = FTTransformer(
 if torch.cuda.is_available():
     FTTrans_model = FTTrans_model.cuda()
 
-n_epochs=300
+n_epochs=N_EPOCHS
 learning_rate=study_FTTrans.best_params['learning_rate']
 weight_decay=study_FTTrans.best_params['weight_decay']
 optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-early_stopping = EarlyStopping(patience=PATIENCE, verbose=True)
+early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
 train_trans(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor, early_stopping)
 
 # Point prediction
