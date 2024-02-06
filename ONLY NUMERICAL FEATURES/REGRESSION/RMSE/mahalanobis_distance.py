@@ -225,8 +225,6 @@ RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
 print("RMSE GP: ", RMSE_GP)
 
 # #### Define train function
-
-
 def train(model,criterion,loss_Adam,optimizer,training_iterations,X_train_tensor,y_train_tensor):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 

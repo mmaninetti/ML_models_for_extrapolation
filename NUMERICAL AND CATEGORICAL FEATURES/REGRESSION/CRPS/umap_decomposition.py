@@ -1,4 +1,4 @@
-
+from umap import UMAP
 import pandas as pd
 import numpy as np
 import setuptools
@@ -27,19 +27,22 @@ from lightgbmlss.distributions.Gaussian import *
 from drf import drf
 import os
 from pygam import LinearGAM, s, f
+from sklearn.metrics.pairwise import euclidean_distances
 
-SUITE_ID = 336 # Regression on numerical features
+#openml.config.apikey = 'FILL_IN_OPENML_API_KEY'  # set the OpenML Api Key
+#SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
-#SUITE_ID = 335 # Regression on numerical and categorical features
+SUITE_ID = 335 # Regression on numerical and categorical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-task_id=361072
+task_id=361093
 task = openml.tasks.get_task(task_id)  # download the OpenML task
 dataset = task.get_dataset()
 
 X, y, categorical_indicator, attribute_names = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute)
+
 
 # Set the random seed for reproducibility
 N_TRIALS=100
@@ -52,37 +55,49 @@ torch.cuda.manual_seed_all(seed)
 random.seed(seed)
 
 
-# calculate the mean and covariance matrix of the dataset
-mean = np.mean(X, axis=0)
-cov = np.cov(X.T)
+# Apply UMAP decomposition
+umap = UMAP(n_components=2, random_state=42)
+X_umap = umap.fit_transform(X)
 
-# calculate the Mahalanobis distance for each data point
-mahalanobis_dist = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X.values]
+# calculate the Euclidean distance matrix
+euclidean_dist_matrix = euclidean_distances(X_umap)
 
-mahalanobis_dist=pd.Series(mahalanobis_dist,index=X.index)
-far_index=mahalanobis_dist.index[np.where(mahalanobis_dist>=np.quantile(mahalanobis_dist,0.8))[0]]
-close_index=mahalanobis_dist.index[np.where(mahalanobis_dist<np.quantile(mahalanobis_dist,0.8))[0]]
+# calculate the Euclidean distance for each data point
+euclidean_dist = np.mean(euclidean_dist_matrix, axis=1)
+
+euclidean_dist = pd.Series(euclidean_dist, index=X.index)
+far_index = euclidean_dist.index[np.where(euclidean_dist >= np.quantile(euclidean_dist, 0.8))[0]]
+close_index = euclidean_dist.index[np.where(euclidean_dist < np.quantile(euclidean_dist, 0.8))[0]]
+
+X_train = X.loc[close_index,:]
+
+# Apply UMAP decomposition on the training set
+X_umap_train = umap.fit_transform(X_train)
+
+# calculate the Euclidean distance matrix for the training set
+euclidean_dist_matrix_train = euclidean_distances(X_umap_train)
+
+# calculate the Euclidean distance for each data point in the training set
+euclidean_dist_train = np.mean(euclidean_dist_matrix_train, axis=1)
+
+euclidean_dist_train = pd.Series(euclidean_dist_train, index=X_train.index)
+far_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train >= np.quantile(euclidean_dist_train, 0.8))[0]]
+close_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train < np.quantile(euclidean_dist_train, 0.8))[0]]
+
+
+# Convert data to PyTorch tensors
+# Modify X_train_, X_val, X_train, and X_test to have dummy variables
+X = pd.get_dummies(X.astype(str), drop_first=True)
 
 X_train = X.loc[close_index,:]
 X_test = X.loc[far_index,:]
 y_train = y.loc[close_index]
 y_test = y.loc[far_index]
 
-mean = np.mean(X_train, axis=0)
-cov = np.cov(X_train.T)
-
-# calculate the Mahalanobis distance for each data point
-mahalanobis_dist_ = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_train.values]
-
-mahalanobis_dist_=pd.Series(mahalanobis_dist_,index=X_train.index)
-far_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_>=np.quantile(mahalanobis_dist_,0.8))[0]]
-close_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_<np.quantile(mahalanobis_dist_,0.8))[0]]
-
-X_train_ = X_train.loc[close_index_,:]
-X_val = X_train.loc[far_index_,:]
-y_train_ = y_train.loc[close_index_]
-y_val = y_train.loc[far_index_]
-
+X_train_ = X_train.loc[close_index_train,:]
+X_val = X_train.loc[far_index_train,:]
+y_train_ = y_train.loc[close_index_train]
+y_val = y_train.loc[far_index_train]
 
 # Convert data to PyTorch tensors
 X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
@@ -108,6 +123,7 @@ if torch.cuda.is_available():
 # Create flattened versions of the data
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
+
 
 #### Gaussian process
 class ExactGPModel(gpytorch.models.ExactGP):
@@ -757,7 +773,7 @@ crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans'
 df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
 
 # Create the directory if it doesn't exist
-os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
+os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
 
 # Save the DataFrame to a CSV file
-df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv', index=False)
+df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_crps_results.csv', index=False)

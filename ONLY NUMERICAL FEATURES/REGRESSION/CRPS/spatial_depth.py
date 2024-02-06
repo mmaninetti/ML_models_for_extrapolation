@@ -761,5 +761,8 @@ crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans'
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
 
+# Create the directory if it doesn't exist
+os.makedirs('RESULTS/SPATIAL_DEPTH', exist_ok=True)
+
 # Save the DataFrame to a CSV file
 df.to_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_crps_results.csv', index=False)

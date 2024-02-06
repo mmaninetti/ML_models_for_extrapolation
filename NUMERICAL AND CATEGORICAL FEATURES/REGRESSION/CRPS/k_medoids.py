@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 import setuptools
@@ -27,19 +26,24 @@ from lightgbmlss.distributions.Gaussian import *
 from drf import drf
 import os
 from pygam import LinearGAM, s, f
+from sklearn.preprocessing import StandardScaler
+import gower
+from sklearn_extra.cluster import KMedoids
 
-SUITE_ID = 336 # Regression on numerical features
+#openml.config.apikey = 'FILL_IN_OPENML_API_KEY'  # set the OpenML Api Key
+#SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
-#SUITE_ID = 335 # Regression on numerical and categorical features
+SUITE_ID = 335 # Regression on numerical and categorical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-task_id=361072
+task_id=361093
 task = openml.tasks.get_task(task_id)  # download the OpenML task
 dataset = task.get_dataset()
 
 X, y, categorical_indicator, attribute_names = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute)
+
 
 # Set the random seed for reproducibility
 N_TRIALS=100
@@ -52,37 +56,91 @@ torch.cuda.manual_seed_all(seed)
 random.seed(seed)
 
 
-# calculate the mean and covariance matrix of the dataset
-mean = np.mean(X, axis=0)
-cov = np.cov(X.T)
+N_CLUSTERS=20
 
-# calculate the Mahalanobis distance for each data point
-mahalanobis_dist = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X.values]
+X_gower = X.copy()
 
-mahalanobis_dist=pd.Series(mahalanobis_dist,index=X.index)
-far_index=mahalanobis_dist.index[np.where(mahalanobis_dist>=np.quantile(mahalanobis_dist,0.8))[0]]
-close_index=mahalanobis_dist.index[np.where(mahalanobis_dist<np.quantile(mahalanobis_dist,0.8))[0]]
+for col in X_gower.select_dtypes(['category']).columns:
+    X_gower[col] = X_gower[col].astype('object')
+
+gower_dist_matrix = gower.gower_matrix(X_gower)
+
+kmedoids = KMedoids(n_clusters=N_CLUSTERS, random_state=0, metric='precomputed', init='k-medoids++').fit(gower_dist_matrix)
+distances=[]
+gower_dist=[]
+counts=[]
+ideal_len=len(kmedoids.labels_)/5
+
+for i in np.arange(N_CLUSTERS):
+    cluster_data = X_gower.loc[kmedoids.labels_==i,:]
+    # Compute the Gower distance between each data point in the cluster and each data point in the global dataset
+    distances_matrix = gower.gower_matrix(cluster_data, X_gower)
+    # Compute the average distance
+    average_distance = np.mean(distances_matrix)
+    gower_dist.append(average_distance)
+    counts.append(cluster_data.shape[0])
+
+dist_df=pd.DataFrame(data={'gower_dist': gower_dist, 'count': counts}, index=np.arange(N_CLUSTERS))
+dist_df=dist_df.sort_values('gower_dist', ascending=False)
+dist_df['cumulative_count']=dist_df['count'].cumsum()
+dist_df['abs_diff']=np.abs(dist_df['cumulative_count']-ideal_len)
+
+final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
+labelss=dist_df.index[0:final+1].to_list()
+labels=pd.Series(kmedoids.labels_).isin(labelss)
+labels.index=X.index
+close_index=labels.index[np.where(labels==False)[0]]
+far_index=labels.index[np.where(labels==True)[0]]
+
+X_train = X.loc[close_index,:]
+X_gower_ = X_train.copy()
+
+for col in X_gower_.select_dtypes(['category']).columns:
+    X_gower_[col] = X_gower_[col].astype('object')
+
+gower_dist_matrix_ = gower.gower_matrix(X_gower_)
+
+kmedoids_ = KMedoids(n_clusters=N_CLUSTERS, random_state=0, metric='precomputed', init='k-medoids++').fit(gower_dist_matrix_)
+distances_=[]
+gower_dist_=[]
+counts_=[]
+ideal_len_=len(kmedoids.labels_)/5
+
+for i in np.arange(N_CLUSTERS):
+    cluster_data_ = X_gower_.loc[kmedoids_.labels_==i,:]
+    # Compute the Gower distance between each data point in the cluster and each data point in the global dataset
+    distances_matrix_ = gower.gower_matrix(cluster_data_, X_gower_)
+    # Compute the average distance
+    average_distance_ = np.mean(distances_matrix_)
+    gower_dist_.append(average_distance_)
+    counts_.append(cluster_data_.shape[0])
+
+dist_df_=pd.DataFrame(data={'gower_dist': gower_dist_, 'count': counts_}, index=np.arange(N_CLUSTERS))
+dist_df_=dist_df_.sort_values('gower_dist', ascending=False)
+dist_df_['cumulative_count']=dist_df_['count'].cumsum()
+dist_df_['abs_diff']=np.abs(dist_df_['cumulative_count']-ideal_len_)
+
+final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
+labelss_=dist_df_.index[0:final_+1].to_list()
+labels_=pd.Series(kmedoids_.labels_).isin(labelss_)
+labels_.index=X_train.index
+close_index_train=labels_.index[np.where(labels_==False)[0]]
+far_index_train=labels_.index[np.where(labels_==True)[0]]
+
+
+# Convert data to PyTorch tensors
+# Modify X_train_, X_val, X_train, and X_test to have dummy variables
+X = pd.get_dummies(X.astype(str), drop_first=True)
 
 X_train = X.loc[close_index,:]
 X_test = X.loc[far_index,:]
 y_train = y.loc[close_index]
 y_test = y.loc[far_index]
 
-mean = np.mean(X_train, axis=0)
-cov = np.cov(X_train.T)
-
-# calculate the Mahalanobis distance for each data point
-mahalanobis_dist_ = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_train.values]
-
-mahalanobis_dist_=pd.Series(mahalanobis_dist_,index=X_train.index)
-far_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_>=np.quantile(mahalanobis_dist_,0.8))[0]]
-close_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_<np.quantile(mahalanobis_dist_,0.8))[0]]
-
-X_train_ = X_train.loc[close_index_,:]
-X_val = X_train.loc[far_index_,:]
-y_train_ = y_train.loc[close_index_]
-y_val = y_train.loc[far_index_]
-
+X_train_ = X_train.loc[close_index_train,:]
+X_val = X_train.loc[far_index_train,:]
+y_train_ = y_train.loc[close_index_train]
+y_val = y_train.loc[far_index_train]
 
 # Convert data to PyTorch tensors
 X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
@@ -108,6 +166,7 @@ if torch.cuda.is_available():
 # Create flattened versions of the data
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
+
 
 #### Gaussian process
 class ExactGPModel(gpytorch.models.ExactGP):
@@ -757,7 +816,7 @@ crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans'
 df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
 
 # Create the directory if it doesn't exist
-os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
+os.makedirs('RESULTS/K_MEDOIDS', exist_ok=True)
 
 # Save the DataFrame to a CSV file
-df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv', index=False)
+df.to_csv(f'RESULTS/K_MEDOIDS/{task_id}_k_medoids_crps_results.csv', index=False)

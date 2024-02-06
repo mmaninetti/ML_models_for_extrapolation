@@ -760,5 +760,8 @@ crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans'
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
 
+# Create the directory if it doesn't exist
+os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
+
 # Save the DataFrame to a CSV file
 df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_crps_results.csv', index=False)
