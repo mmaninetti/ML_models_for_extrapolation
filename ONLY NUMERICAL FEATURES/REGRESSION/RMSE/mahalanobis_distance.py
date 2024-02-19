@@ -105,6 +105,7 @@ if torch.cuda.is_available():
     y_val_tensor = y_val_tensor.cuda()
     X_test_tensor = X_test_tensor.cuda()
     y_test_tensor = y_test_tensor.cuda()
+print(X_train__tensor.device)
 
 # Create flattened versions of the data
 y_val_np = y_val.values.flatten()
