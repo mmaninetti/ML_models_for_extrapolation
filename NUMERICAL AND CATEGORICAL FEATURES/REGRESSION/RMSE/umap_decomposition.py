@@ -1,11 +1,13 @@
-
+from umap import UMAP
 import pandas as pd
 import numpy as np
 import setuptools
 import openml
 from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
+import lightgbmlss
 import optuna
+from scipy.spatial.distance import mahalanobis
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.gaussian_process.kernels import Matern
@@ -16,25 +18,32 @@ from scipy.spatial.distance import mahalanobis
 from scipy.stats import norm
 from sklearn.metrics import mean_squared_error
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
+from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
 import tqdm.auto as tqdm
+from lightgbmlss.model import *
+from lightgbmlss.distributions.Gaussian import *
+from drf import drf
 import os
 from pygam import LinearGAM, s, f
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP
+from sklearn.metrics.pairwise import euclidean_distances
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping,train_GP
 
-SUITE_ID = 336 # Regression on numerical features
+#openml.config.apikey = 'FILL_IN_OPENML_API_KEY'  # set the OpenML Api Key
+#SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
-#SUITE_ID = 335 # Regression on numerical and categorical features
+SUITE_ID = 335 # Regression on numerical and categorical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-task_id=361072
+task_id=361093
 task = openml.tasks.get_task(task_id)  # download the OpenML task
 dataset = task.get_dataset()
 
 X, y, categorical_indicator, attribute_names = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute)
+
 
 # Set the random seed for reproducibility
 N_TRIALS=100
@@ -50,80 +59,49 @@ torch.cuda.manual_seed_all(seed)
 random.seed(seed)
 
 
-# New new implementation
-N_CLUSTERS=20
-# calculate the mean and covariance matrix of the dataset
-mean = np.mean(X, axis=0)
-cov = np.cov(X.T)
-scaler = StandardScaler()
+# Apply UMAP decomposition
+umap = UMAP(n_components=2, random_state=42)
+X_umap = umap.fit_transform(X)
 
-# transform data to compute the clusters
-X_scaled = scaler.fit_transform(X)
+# calculate the Euclidean distance matrix
+euclidean_dist_matrix = euclidean_distances(X_umap)
 
-kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_scaled)
-distances=[]
-mahalanobis_dist=[]
-counts=[]
-ideal_len=len(kmeans.labels_)/5
-for i in np.arange(N_CLUSTERS):
-    distances.append(np.abs(np.sum(kmeans.labels_==i)-ideal_len))
-    counts.append(np.sum(kmeans.labels_==i))
-    mean_k= np.mean(X.loc[kmeans.labels_==i,:], axis=0)
-    mahalanobis_dist.append(mahalanobis(mean_k, mean, np.linalg.inv(cov)))
+# calculate the Euclidean distance for each data point
+euclidean_dist = np.mean(euclidean_dist_matrix, axis=1)
 
-dist_df=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist, 'count': counts}, index=np.arange(N_CLUSTERS))
-dist_df=dist_df.sort_values('mahalanobis_dist', ascending=False)
-dist_df['cumulative_count']=dist_df['count'].cumsum()
-dist_df['abs_diff']=np.abs(dist_df['cumulative_count']-ideal_len)
+euclidean_dist = pd.Series(euclidean_dist, index=X.index)
+far_index = euclidean_dist.index[np.where(euclidean_dist >= np.quantile(euclidean_dist, 0.8))[0]]
+close_index = euclidean_dist.index[np.where(euclidean_dist < np.quantile(euclidean_dist, 0.8))[0]]
 
-final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
-labelss=dist_df.index[0:final+1].to_list()
-labels=pd.Series(kmeans.labels_).isin(labelss)
-labels.index=X.index
-close_index=labels.index[np.where(labels==False)[0]]
-far_index=labels.index[np.where(labels==True)[0]]
+X_train = X.loc[close_index,:]
+
+# Apply UMAP decomposition on the training set
+X_umap_train = umap.fit_transform(X_train)
+
+# calculate the Euclidean distance matrix for the training set
+euclidean_dist_matrix_train = euclidean_distances(X_umap_train)
+
+# calculate the Euclidean distance for each data point in the training set
+euclidean_dist_train = np.mean(euclidean_dist_matrix_train, axis=1)
+
+euclidean_dist_train = pd.Series(euclidean_dist_train, index=X_train.index)
+far_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train >= np.quantile(euclidean_dist_train, 0.8))[0]]
+close_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train < np.quantile(euclidean_dist_train, 0.8))[0]]
+
+
+# Convert data to PyTorch tensors
+# Modify X_train_, X_val, X_train, and X_test to have dummy variables
+X = pd.get_dummies(X.astype(str), drop_first=True)
 
 X_train = X.loc[close_index,:]
 X_test = X.loc[far_index,:]
 y_train = y.loc[close_index]
 y_test = y.loc[far_index]
 
-# calculate the mean and covariance matrix of the dataset
-mean_ = np.mean(X_train, axis=0)
-cov_ = np.cov(X_train.T)
-scaler_ = StandardScaler()
-
-# transform data to compute the clusters
-X_train_scaled = scaler_.fit_transform(X_train)
-
-kmeans_ = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_train_scaled)
-distances_=[]
-counts_=[]
-mahalanobis_dist_=[]
-ideal_len_=len(kmeans_.labels_)/5
-for i in np.arange(N_CLUSTERS):
-    distances_.append(np.abs(np.sum(kmeans_.labels_==i)-ideal_len_))
-    counts_.append(np.sum(kmeans_.labels_==i))
-    mean_k_= np.mean(X_train.loc[kmeans_.labels_==i,:], axis=0)
-    mahalanobis_dist_.append(mahalanobis(mean_k_, mean_, np.linalg.inv(cov_)))
-
-dist_df_=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist_, 'count': counts_}, index=np.arange(N_CLUSTERS))
-dist_df_=dist_df_.sort_values('mahalanobis_dist', ascending=False)
-dist_df_['cumulative_count']=dist_df_['count'].cumsum()
-dist_df_['abs_diff']=np.abs(dist_df_['cumulative_count']-ideal_len_)
-
-final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
-labelss_=dist_df_.index[0:final_+1].to_list()
-labels_=pd.Series(kmeans_.labels_).isin(labelss_)
-labels_.index=X_train.index
-close_index_=labels_.index[np.where(labels_==False)[0]]
-far_index_=labels_.index[np.where(labels_==True)[0]]
-
-X_train_ = X_train.loc[close_index_,:]
-X_val = X_train.loc[far_index_,:]
-y_train_ = y_train.loc[close_index_]
-y_val = y_train.loc[far_index_]
-
+X_train_ = X_train.loc[close_index_train,:]
+X_val = X_train.loc[far_index_train,:]
+y_train_ = y_train.loc[close_index_train]
+y_val = y_train.loc[far_index_train]
 
 # Convert data to PyTorch tensors
 X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
@@ -149,6 +127,7 @@ if torch.cuda.is_available():
 # Create flattened versions of the data
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
+
 
 #### Gaussian process
 class ExactGPModel(gpytorch.models.ExactGP):
@@ -255,7 +234,8 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
 RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
 print("RMSE GP: ", RMSE_GP)
 
-#### MLP
+
+# #### MLP
 d_out = 1  
 d_in=X_train_.shape[1]
 
@@ -285,7 +265,7 @@ def MLP_opt(trial):
 
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
-
+    
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
     n_epochs=train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
@@ -318,7 +298,7 @@ optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_deca
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_no_early_stopping(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor)
+train_no_early_stopping(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
 y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,))
@@ -395,14 +375,14 @@ optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_d
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_no_early_stopping(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor)
+train_no_early_stopping(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
 y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,))
 RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_ResNet)))
 print("RMSE ResNet: ", RMSE_ResNet)
 
-#### FFTransformer
+# #### FFTransformer
 d_out = 1  
 d_in=X_train_.shape[1]
 
@@ -476,14 +456,14 @@ FTTrans_model = FTTransformer(
 if torch.cuda.is_available():
     FTTrans_model = FTTrans_model.cuda()
 
-n_epochs=study_FTTrans.best_params['n_epochs'] 
+n_epochs=study_FTTrans.best_params['n_epochs']
 learning_rate=study_FTTrans.best_params['learning_rate']
 weight_decay=study_FTTrans.best_params['weight_decay']
 optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_trans_no_early_stopping(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor)
+train_trans_no_early_stopping(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
 y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,))
@@ -507,7 +487,7 @@ def boosted(trial):
 
     return RMSE_boost
 
-sampler_boost = optuna.samplers.TPESampler(seed=10)
+sampler_boost = optuna.samplers.TPESampler(seed=seed)
 study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
 study_boost.optimize(boosted, n_trials=N_TRIALS)
 boosted_model=lgbm.LGBMRegressor(**study_boost.best_params)
@@ -526,7 +506,7 @@ def rf(trial):
 
     return RMSE_rf
 
-sampler_rf = optuna.samplers.TPESampler(seed=10)
+sampler_rf = optuna.samplers.TPESampler(seed=seed)
 study_rf = optuna.create_study(sampler=sampler_rf, direction='minimize')
 study_rf.optimize(rf, n_trials=N_TRIALS)
 rf_model=RandomForestRegressor(**study_rf.best_params)
@@ -622,13 +602,13 @@ y_test_hat_gam = final_gam_model.predict(X_test)
 RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
 print("RMSE GAM: ", RMSE_gam)
 
-RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression, 'GAM': RMSE_gam} 
+RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression, 'GAM': RMSE_gam}  
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
 
 # Create the directory if it doesn't exist
-os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
+os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
 
 # Save the DataFrame to a CSV file
-df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_RMSE_results.csv', index=False)
+df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_RMSE_results.csv', index=False)

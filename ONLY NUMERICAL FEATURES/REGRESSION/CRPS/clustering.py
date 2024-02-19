@@ -26,6 +26,7 @@ from lightgbmlss.distributions.Gaussian import *
 from drf import drf
 import os
 from pygam import LinearGAM, s, f
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping,train_GP
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -43,6 +44,9 @@ X, y, categorical_indicator, attribute_names = dataset.get_data(
 # Set the random seed for reproducibility
 N_TRIALS=100
 N_SAMPLES=100
+PATIENCE=40
+N_EPOCHS=1000
+GP_ITERATIONS=1000
 seed=10
 torch.cuda.manual_seed_all(seed)
 np.random.seed(seed)
@@ -164,7 +168,7 @@ class ExactGPModel(gpytorch.models.ExactGP):
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 # Define the learning params
-training_iterations = 1000
+training_iterations = GP_ITERATIONS
 
 # Define the kernels
 kernels = [
@@ -177,20 +181,6 @@ kernels = [
 best_crps = float('inf')
 best_kernel = None
 
-def train(model,X_train_tensor,y_train_tensor):
-    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
-
-    for _ in iterator:
-        # Zero backprop gradients
-        optimizer.zero_grad()
-        # Get output from model
-        output = model(X_train_tensor)
-        # Calc loss and backprop derivatives
-        loss = -mll(output, y_train_tensor)
-        loss.backward()
-        iterator.set_postfix(loss=loss.item())
-        optimizer.step()
-        torch.cuda.empty_cache()
 
 for kernel in kernels:
     # Initialize the Gaussian Process model and likelihood
@@ -207,7 +197,7 @@ for kernel in kernels:
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
     # Train the model
-    train(model,X_train__tensor,y_train__tensor)
+    train_GP(model,X_train__tensor,y_train__tensor,training_iterations,mll,optimizer)
     
     # Set the model in evaluation mode
     model.eval()
@@ -247,7 +237,7 @@ class ExactGPModel(gpytorch.models.ExactGP):
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 # Define the learning params
-training_iterations = 1000
+training_iterations = GP_ITERATIONS
 
 # Initialize the Gaussian Process model and likelihood
 likelihood = gpytorch.likelihoods.GaussianLikelihood()
@@ -263,7 +253,7 @@ if torch.cuda.is_available():
     model = model.cuda()
 
 # Train the model
-train(model,X_train_tensor,y_train_tensor)
+train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer)
 
 # Set the model in evaluation mode
 model.eval()
@@ -327,7 +317,7 @@ def MLP_opt(trial):
     d_block=d_block,
     dropout=dropout,
     )
-    n_epochs=trial.suggest_int('n_epochs', 100, 5000)
+    n_epochs=N_EPOCHS
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -337,7 +327,9 @@ def MLP_opt(trial):
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
     
-    train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
+    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
+    n_epochs=train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
     y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,)).detach().numpy()
@@ -375,7 +367,7 @@ optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_deca
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+train_no_early_stopping(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor)
 
 # Point prediction
 y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,)).detach().numpy()
@@ -422,14 +414,16 @@ def ResNet_opt(trial):
     )
     if torch.cuda.is_available():
         ResNet_model = ResNet_model.cuda()
-    n_epochs=trial.suggest_int('n_epochs', 100, 5000)
+    n_epochs=N_EPOCHS
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
     loss_Adam=[]
 
-    train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
+    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
+    n_epochs=train(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
     y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,)).detach().numpy()
@@ -470,7 +464,7 @@ optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_d
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+train_no_early_stopping(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
 y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,)).detach().numpy()
@@ -486,25 +480,6 @@ crps_ResNet = np.mean(crps_values)
 
 print("CRPS ResNet: ", crps_ResNet)
 # #### FFTransformer
-
-def train_trans(model,criterion,loss_Adam,optimizer,training_iterations,X_train_tensor,y_train_tensor):
-    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
-
-    for _ in iterator:
-        # making a pridiction in forward pass
-        y_train_hat = model(X_train_tensor, None).reshape(-1,)
-        # calculating the loss between original and predicted data points
-        loss = criterion(y_train_hat, torch.Tensor(y_train_tensor))
-        # store loss into list
-        loss_Adam.append(loss.item())
-        # zeroing gradients after each iteration
-        optimizer.zero_grad()
-        # backward pass for computing the gradients of the loss w.r.t to learnable parameters
-        loss.backward()
-        # updating the parameters after each iteration
-        optimizer.step()
-        iterator.set_postfix(loss=loss.item())
-        torch.cuda.empty_cache()
 
 d_out = 1  
 d_in=X_train_.shape[1]
@@ -540,14 +515,16 @@ def FTTrans_opt(trial):
     if torch.cuda.is_available():
         FTTrans_model = FTTrans_model.cuda()
 
-    n_epochs=trial.suggest_int('n_epochs', 100, 5000)
+    n_epochs=N_EPOCHS
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
     loss_Adam=[]
 
-    train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
+    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
+    n_epochs=train_trans(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
     y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,)).detach().numpy()
@@ -592,7 +569,7 @@ optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+train_trans_no_early_stopping(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
 y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,)).detach().numpy()
@@ -795,6 +772,9 @@ crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans'
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
+
+# Create the directory if it doesn't exist
+os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
 
 # Save the DataFrame to a CSV file
 df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_crps_results.csv', index=False)
