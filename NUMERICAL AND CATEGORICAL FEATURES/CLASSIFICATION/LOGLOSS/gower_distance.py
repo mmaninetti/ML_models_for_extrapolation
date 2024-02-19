@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 import setuptools
@@ -25,21 +24,19 @@ from pygam import LogisticGAM, s
 import torch
 from torch import nn
 from torch.optim import Adam
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import LabelEncoder 
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping,train_GP
+from sklearn.metrics import log_loss
+import gower
+from sklearn.preprocessing import LabelEncoder
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP
 
-import rpy2.robjects as robjects
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.packages import importr
 
 #SUITE_ID = 336 # Regression on numerical features
-SUITE_ID = 337 # Classification on numerical features
+#SUITE_ID = 337 # Classification on numerical features
 #SUITE_ID = 335 # Regression on numerical and categorical features
-#SUITE_ID = 334 # Classification on numerical and categorical features
+SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-task_id=361055
+task_id=361110
 task = openml.tasks.get_task(task_id)  # download the OpenML task
 dataset = task.get_dataset()
 
@@ -68,39 +65,52 @@ torch.cuda.manual_seed_all(seed)
 random.seed(seed)
 
 
-# activate pandas conversion for rpy2
-pandas2ri.activate()
+# Compute Gower distance and define train and test set
+# calculate the Gower distance matrix
+X_gower = X.copy()
 
-# import R's "ddalpha" package
-ddalpha = importr('ddalpha')
+for col in X_gower.select_dtypes(['category']).columns:
+    X_gower[col] = X_gower[col].astype('object')
 
-# explicitly import the projDepth function
-spatialDepth = robjects.r['depth.spatial']
+gower_dist_matrix = gower.gower_matrix(X_gower)
 
-# calculate the spatial depth for each data point
-spatial_depth = spatialDepth(X, X, seed=seed)
+# calculate the Gower distance for each data point
+gower_dist = np.mean(gower_dist_matrix, axis=1)
 
-spatial_depth=pd.Series(spatial_depth,index=X.index)
-far_index=spatial_depth.index[np.where(spatial_depth<=np.quantile(spatial_depth,0.2))[0]]
-close_index=spatial_depth.index[np.where(spatial_depth>np.quantile(spatial_depth,0.2))[0]]
+gower_dist=pd.Series(gower_dist,index=X.index)
+far_index=gower_dist.index[np.where(gower_dist>=np.quantile(gower_dist,0.8))[0]]
+close_index=gower_dist.index[np.where(gower_dist<np.quantile(gower_dist,0.8))[0]]
+
+X_train = X.loc[close_index,:]
+X_gower_ = X_train.copy()
+
+for col in X_gower_.select_dtypes(['category']).columns:
+    X_gower_[col] = X_gower_[col].astype('object')
+
+# calculate the Gower distance matrix for the training set
+gower_dist_matrix_train = gower.gower_matrix(X_gower_)
+
+# calculate the Gower distance for each data point in the training set
+gower_dist_train = np.mean(gower_dist_matrix_train, axis=1)
+
+gower_dist_train=pd.Series(gower_dist_train,index=X_train.index)
+far_index_train=gower_dist_train.index[np.where(gower_dist_train>=np.quantile(gower_dist_train,0.8))[0]]
+close_index_train=gower_dist_train.index[np.where(gower_dist_train<np.quantile(gower_dist_train,0.8))[0]]
+
+
+# Convert data to PyTorch tensors
+# Modify X_train_, X_val, X_train, and X_test to have dummy variables
+X = pd.get_dummies(X.astype(str), drop_first=True)
 
 X_train = X.loc[close_index,:]
 X_test = X.loc[far_index,:]
 y_train = y.loc[close_index]
 y_test = y.loc[far_index]
 
-# convert the R vector to a pandas Series
-spatial_depth_ = spatialDepth(X_train, X_train, seed=seed)
-
-spatial_depth_=pd.Series(spatial_depth_,index=X_train.index)
-far_index_=spatial_depth_.index[np.where(spatial_depth_<=np.quantile(spatial_depth_,0.2))[0]]
-close_index_=spatial_depth_.index[np.where(spatial_depth_>np.quantile(spatial_depth_,0.2))[0]]
-
-X_train_ = X_train.loc[close_index_,:]
-X_val = X_train.loc[far_index_,:]
-y_train_ = y_train.loc[close_index_]
-y_val = y_train.loc[far_index_]
-
+X_train_ = X_train.loc[close_index_train,:]
+X_val = X_train.loc[far_index_train,:]
+y_train_ = y_train.loc[close_index_train]
+y_val = y_train.loc[far_index_train]
 
 # Convert data to PyTorch tensors
 X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
@@ -151,8 +161,9 @@ kernels = [
     gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
 ]
 
-best_accuracy = 0
+best_log_loss = float('inf')
 best_kernel = None
+
 
 for kernel in kernels:
     # Initialize the Gaussian Process model and likelihood
@@ -180,12 +191,12 @@ for kernel in kernels:
         output = model(X_val_tensor)
         preds = likelihood(output)
 
-    # Calculate accuracy
-    accuracy = accuracy_score(y_val_tensor, preds.mean.ge(0.5).float())
+    # Calculate log loss
+    current_log_loss = log_loss(y_val_tensor.cpu().numpy(), preds.mean.cpu().numpy())
 
-    # Update the best kernel if the current kernel has a higher accuracy
-    if accuracy > best_accuracy:
-        best_accuracy = accuracy
+    # Update the best kernel if the current kernel has a lower log loss
+    if current_log_loss < best_log_loss:
+        best_log_loss = current_log_loss
         best_kernel = kernel
 
 # Set the random seed for reproducibility
@@ -224,14 +235,15 @@ train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer)
 model.eval()
 likelihood.eval()
 
-# Make predictions on the validation set
+# Make predictions on the test set
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
     output = model(X_test_tensor)
     preds = likelihood(output)
 
-# Calculate accuracy
-accuracy_GP = accuracy_score(y_test_tensor, preds.mean.ge(0.5).float())
-print("Accuracy GP: ", accuracy_GP)
+# Calculate log loss
+log_loss_GP = log_loss(y_test_tensor.cpu().numpy(), preds.mean.cpu().numpy())
+print("Log Loss GP: ", log_loss_GP)
+
 
 # #### MLP
 d_out = 1  
@@ -270,12 +282,12 @@ def MLP_opt(trial):
 
     # Point prediction
     y_val_hat_MLP = torch.sigmoid(MLP_model(X_val_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_MLP = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_MLP.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    log_loss_MLP = log_loss(y_val_tensor.cpu().numpy(), y_val_hat_MLP.cpu().numpy())  # Calculate log loss
 
-    return accuracy_MLP
+    return log_loss_MLP
 
 sampler_MLP = optuna.samplers.TPESampler(seed=seed)
-study_MLP = optuna.create_study(sampler=sampler_MLP, direction='maximize')  # We want to maximize accuracy
+study_MLP = optuna.create_study(sampler=sampler_MLP, direction='minimize')  # We want to minimize log loss
 study_MLP.optimize(MLP_opt, n_trials=N_TRIALS)
 
 MLP_model = MLP(
@@ -300,8 +312,8 @@ train_no_early_stopping(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train
 
 # Point prediction
 y_test_hat_MLP = torch.sigmoid(MLP_model(X_test_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_MLP = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_MLP.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy MLP: ", accuracy_MLP)
+log_loss_MLP = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_MLP.cpu().numpy())  # Calculate log loss
+print("Log Loss MLP: ", log_loss_MLP)
 
 # #### ResNet
 d_out = 1  
@@ -344,12 +356,12 @@ def ResNet_opt(trial):
 
     # Point prediction
     y_val_hat_ResNet = torch.sigmoid(ResNet_model(X_val_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_ResNet = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_ResNet.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    log_loss_ResNet = log_loss(y_val_tensor.cpu().numpy(), y_val_hat_ResNet.cpu().numpy())  # Calculate log loss
 
-    return accuracy_ResNet
+    return log_loss_ResNet
 
 sampler_ResNet = optuna.samplers.TPESampler(seed=seed)
-study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='maximize')  # We want to maximize accuracy
+study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='minimize')  # We want to minimize log loss
 study_ResNet.optimize(ResNet_opt, n_trials=N_TRIALS)
 
 ResNet_model = ResNet(
@@ -377,8 +389,8 @@ train_no_early_stopping(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_tr
 
 # Point prediction
 y_test_hat_ResNet = torch.sigmoid(ResNet_model(X_test_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_ResNet = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_ResNet.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy ResNet: ", accuracy_ResNet)
+log_loss_ResNet = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_ResNet.cpu().numpy())  # Calculate log loss
+print("Log Loss ResNet: ", log_loss_ResNet)
 
 # #### FFTransformer
 
@@ -429,12 +441,12 @@ def FTTrans_opt(trial):
 
     # Point prediction
     y_val_hat_FTTrans = torch.sigmoid(FTTrans_model(X_val_tensor, None).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_FTTrans = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    log_loss_FTTrans = log_loss(y_val_tensor.cpu().numpy(), y_val_hat_FTTrans.cpu().numpy())  # Calculate log loss
 
-    return accuracy_FTTrans
+    return log_loss_FTTrans
 
 sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
-study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='maximize')  # We want to maximize accuracy
+study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='minimize')  # We want to minimize log loss
 study_FTTrans.optimize(FTTrans_opt, n_trials=N_TRIALS)
 
 
@@ -466,8 +478,8 @@ train_trans_no_early_stopping(FTTrans_model,criterion,loss_Adam,optimizer,n_epoc
 
 # Point prediction
 y_test_hat_FTTrans = torch.sigmoid(FTTrans_model(X_test_tensor, None).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_FTTrans = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy FTTrans: ", accuracy_FTTrans)
+log_loss_FTTrans = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.cpu().numpy())  # Calculate log loss
+print("Log Loss FTTrans: ", log_loss_FTTrans)
 
 # #### Boosted trees, random forest, engression, linear regression
 
@@ -481,13 +493,13 @@ def boosted(trial):
     
     boosted_tree_model=lgbm.LGBMClassifier(**params)
     boosted_tree_model.fit(X_train_, y_train_)
-    y_val_hat_boost=boosted_tree_model.predict(X_val)
-    accuracy_boost=accuracy_score(y_val, y_val_hat_boost)
+    y_val_hat_boost = boosted_tree_model.predict_proba(X_val)[:, 1]  # Get predicted probabilities
+    log_loss_boost = log_loss(y_val, y_val_hat_boost)  # Calculate log loss
 
-    return accuracy_boost
+    return log_loss_boost
 
 sampler_boost = optuna.samplers.TPESampler(seed=seed)
-study_boost = optuna.create_study(sampler=sampler_boost, direction='maximize')
+study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')  # We want to minimize log loss
 study_boost.optimize(boosted, n_trials=N_TRIALS)
 boosted_model=lgbm.LGBMClassifier(**study_boost.best_params)
 
@@ -500,13 +512,13 @@ def rf(trial):
     
     rf_model=RandomForestClassifier(**params)
     rf_model.fit(X_train_, y_train_)
-    y_val_hat_rf=rf_model.predict(X_val)
-    accuracy_rf=accuracy_score(y_val, y_val_hat_rf)
+    y_val_hat_rf = rf_model.predict_proba(X_val)[:, 1]  # Get predicted probabilities
+    log_loss_rf = log_loss(y_val, y_val_hat_rf)  # Calculate log loss
 
-    return accuracy_rf
+    return log_loss_rf
 
 sampler_rf = optuna.samplers.TPESampler(seed=seed)
-study_rf = optuna.create_study(sampler=sampler_rf, direction='maximize')
+study_rf = optuna.create_study(sampler=sampler_rf, direction='minimize')
 study_rf.optimize(rf, n_trials=N_TRIALS)
 rf_model=RandomForestClassifier(**study_rf.best_params)
 
@@ -525,33 +537,31 @@ def engressor_NN(trial):
         engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True)
     
     # Generate a sample from the engression model for each data point
-    y_val_hat_engression=engressor_model.predict(X_val_tensor, target="mean")
-    y_val_hat_engression = y_val_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
+    y_val_hat_engression = engressor_model.predict(X_val_tensor, target="mean")  # Get predicted probabilities
+    log_loss_engression = log_loss(y_val_tensor.cpu().numpy(), y_val_hat_engression.cpu().numpy())  # Calculate log loss
 
-    accuracy_engression = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_engression.cpu().numpy())  # Calculate accuracy
-
-    return accuracy_engression
+    return log_loss_engression
 
 sampler_engression = optuna.samplers.TPESampler(seed=seed)
-study_engression = optuna.create_study(sampler=sampler_engression, direction='maximize')  # We want to maximize accuracy
+study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')  # We want to maximize accuracy
 study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
 
 
 # Fit the boosted model and make predictions
 boosted_model.fit(X_train, y_train)
-y_test_hat_boosted = boosted_model.predict(X_test)
-accuracy_boosted = accuracy_score(y_test, y_test_hat_boosted)
+y_test_hat_boosted = boosted_model.predict_proba(X_test)[:, 1]  # Get predicted probabilities
+log_loss_boosted = log_loss(y_test, y_test_hat_boosted)  # Calculate log loss
 
 # Fit the random forest model and make predictions
 rf_model.fit(X_train, y_train)
-y_test_hat_rf = rf_model.predict(X_test)
-accuracy_rf = accuracy_score(y_test, y_test_hat_rf)
+y_test_hat_rf = rf_model.predict_proba(X_test)[:, 1]  # Get predicted probabilities
+log_loss_rf = log_loss(y_test, y_test_hat_rf)  # Calculate log loss
 
 # Fit the logistic regression model and make predictions
 log_reg = LogisticRegression()
 log_reg.fit(X_train, y_train)
-y_test_hat_logreg = log_reg.predict(X_test)
-accuracy_logreg = accuracy_score(y_test, y_test_hat_logreg)
+y_test_hat_logreg = log_reg.predict_proba(X_test)[:, 1]  # Get predicted probabilities
+log_loss_logreg = log_loss(y_test, y_test_hat_logreg)  # Calculate log loss
 
 # Engression model
 params=study_engression.best_params
@@ -563,14 +573,14 @@ else:
     engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True)
 # Assuming the model outputs probabilities for the two classes
 y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
-# Convert the probabilities to class labels
-y_test_hat_engression = y_test_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
-accuracy_engression = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate accuracy
+# Assuming the model outputs probabilities for the two classes
+y_test_hat_engression = engressor_model.predict(X_test_tensor, target="mean")
+log_loss_engression = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate log loss
 
-print("Accuracy logistic regression: ", accuracy_logreg)
-print("Accuracy boosted trees: ", accuracy_boosted)
-print("Accuracy random forest: ", accuracy_rf)
-print("Accuracy engression: ", accuracy_engression)
+print("Log Loss logistic regression: ", log_loss_logreg)
+print("Log Loss boosted trees: ", log_loss_boosted)
+print("Log Loss random forest: ", log_loss_rf)
+print("Log Loss engression: ", log_loss_engression)
 
 # GAM model
 def gam_model(trial):
@@ -582,15 +592,15 @@ def gam_model(trial):
     # Create and train the model
     gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
 
-    # Predict on the validation set and calculate the accuracy
-    y_val_hat_gam = gam.predict(X_val)
-    accuracy_gam = accuracy_score(y_val, y_val_hat_gam)
+    # Predict on the validation set and calculate the log loss
+    y_val_hat_gam = gam.predict_proba(X_val)
+    log_loss_gam = log_loss(y_val, y_val_hat_gam)
 
-    return accuracy_gam
+    return log_loss_gam
 
 # Create the sampler and study
 sampler_gam = optuna.samplers.TPESampler(seed=seed)
-study_gam = optuna.create_study(sampler=sampler_gam, direction='maximize')
+study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')  # We want to minimize log loss
 
 # Optimize the model
 study_gam.optimize(gam_model, n_trials=N_TRIALS)
@@ -603,18 +613,18 @@ final_gam_model = LogisticGAM(s(0, n_splines=best_params['n_splines'], lam=best_
 final_gam_model.fit(X_train, y_train)
 
 # Predict on the test set
-y_test_hat_gam = final_gam_model.predict(X_test)
-# Calculate the accuracy
-accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
-print("Accuracy GAM: ", accuracy_gam)
+y_test_hat_gam = final_gam_model.predict_proba(X_test)
+# Calculate the log loss
+log_loss_gam = log_loss(y_test, y_test_hat_gam)
+print("Log Loss GAM: ", log_loss_gam)
 
-accuracy_results = {'GP': accuracy_GP, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'linear_regression': accuracy_linreg, 'engression': accuracy_engression, 'GAM': accuracy_gam}  
+log_loss_results = {'GP': log_loss_GP, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'linear_regression': log_loss_linreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}  
 
 # Convert the dictionary to a DataFrame
-df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])
+df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])
 
 # Create the directory if it doesn't exist
-os.makedirs('RESULTS/SPATIAL_DEPTH', exist_ok=True)
+os.makedirs('RESULTS/GOWER', exist_ok=True)
 
 # Save the DataFrame to a CSV file
-df.to_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_accuracy_results.csv', index=False)
+df.to_csv(f'RESULTS/GOWER/{task_id}_gower_logloss_results.csv', index=False)

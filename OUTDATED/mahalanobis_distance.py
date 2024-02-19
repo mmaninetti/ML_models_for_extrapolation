@@ -3,12 +3,12 @@ import pandas as pd
 import numpy as np
 import setuptools
 import openml
-from sklearn.linear_model import LogisticRegression 
+from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
 import optuna
 from scipy.spatial.distance import mahalanobis
 from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.gaussian_process.kernels import Matern
 from engression import engression, engression_bagged
 import torch
@@ -17,49 +17,29 @@ from scipy.spatial.distance import mahalanobis
 from scipy.stats import norm
 from sklearn.metrics import mean_squared_error
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
+from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
 import tqdm.auto as tqdm
 import os
-from pygam import LogisticGAM, s
-import torch
-from torch import nn
-from torch.optim import Adam
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import LabelEncoder 
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping,train_GP
+from pygam import LinearGAM, s, f
 
-import rpy2.robjects as robjects
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.packages import importr
-
-#SUITE_ID = 336 # Regression on numerical features
-SUITE_ID = 337 # Classification on numerical features
+SUITE_ID = 336 # Regression on numerical features
+#SUITE_ID = 337 # Classification on numerical features
 #SUITE_ID = 335 # Regression on numerical and categorical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-task_id=361055
+task_id=361072
 task = openml.tasks.get_task(task_id)  # download the OpenML task
 dataset = task.get_dataset()
 
 X, y, categorical_indicator, attribute_names = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute)
 
-# Transform y to int type, to then be able to apply BCEWithLogitsLoss
-# Create a label encoder
-le = LabelEncoder()
-# Fit the label encoder and transform y to get binary labels
-y_encoded = le.fit_transform(y)
-# Convert the result back to a pandas Series
-y = pd.Series(y_encoded, index=y.index)
-
 # Set the random seed for reproducibility
 N_TRIALS=100
 N_SAMPLES=100
-PATIENCE=40
-N_EPOCHS=1000
-GP_ITERATIONS=1000
 seed=10
 torch.cuda.manual_seed_all(seed)
 np.random.seed(seed)
@@ -68,33 +48,31 @@ torch.cuda.manual_seed_all(seed)
 random.seed(seed)
 
 
-# activate pandas conversion for rpy2
-pandas2ri.activate()
+# calculate the mean and covariance matrix of the dataset
+mean = np.mean(X, axis=0)
+cov = np.cov(X.T)
 
-# import R's "ddalpha" package
-ddalpha = importr('ddalpha')
+# calculate the Mahalanobis distance for each data point
+mahalanobis_dist = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X.values]
 
-# explicitly import the projDepth function
-spatialDepth = robjects.r['depth.spatial']
-
-# calculate the spatial depth for each data point
-spatial_depth = spatialDepth(X, X, seed=seed)
-
-spatial_depth=pd.Series(spatial_depth,index=X.index)
-far_index=spatial_depth.index[np.where(spatial_depth<=np.quantile(spatial_depth,0.2))[0]]
-close_index=spatial_depth.index[np.where(spatial_depth>np.quantile(spatial_depth,0.2))[0]]
+mahalanobis_dist=pd.Series(mahalanobis_dist,index=X.index)
+far_index=mahalanobis_dist.index[np.where(mahalanobis_dist>=np.quantile(mahalanobis_dist,0.8))[0]]
+close_index=mahalanobis_dist.index[np.where(mahalanobis_dist<np.quantile(mahalanobis_dist,0.8))[0]]
 
 X_train = X.loc[close_index,:]
 X_test = X.loc[far_index,:]
 y_train = y.loc[close_index]
 y_test = y.loc[far_index]
 
-# convert the R vector to a pandas Series
-spatial_depth_ = spatialDepth(X_train, X_train, seed=seed)
+mean = np.mean(X_train, axis=0)
+cov = np.cov(X_train.T)
 
-spatial_depth_=pd.Series(spatial_depth_,index=X_train.index)
-far_index_=spatial_depth_.index[np.where(spatial_depth_<=np.quantile(spatial_depth_,0.2))[0]]
-close_index_=spatial_depth_.index[np.where(spatial_depth_>np.quantile(spatial_depth_,0.2))[0]]
+# calculate the Mahalanobis distance for each data point
+mahalanobis_dist_ = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_train.values]
+
+mahalanobis_dist_=pd.Series(mahalanobis_dist_,index=X_train.index)
+far_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_>=np.quantile(mahalanobis_dist_,0.8))[0]]
+close_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_<np.quantile(mahalanobis_dist_,0.8))[0]]
 
 X_train_ = X_train.loc[close_index_,:]
 X_val = X_train.loc[far_index_,:]
@@ -128,7 +106,6 @@ y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
 
 #### Gaussian process
-# Define your model
 class ExactGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood, kernel):
         super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
@@ -141,7 +118,7 @@ class ExactGPModel(gpytorch.models.ExactGP):
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 # Define the learning params
-training_iterations = GP_ITERATIONS
+training_iterations = 1000
 
 # Define the kernels
 kernels = [
@@ -151,12 +128,27 @@ kernels = [
     gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
 ]
 
-best_accuracy = 0
+best_RMSE = float('inf')
 best_kernel = None
+
+def train(model,X_train_tensor,y_train_tensor):
+    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
+
+    for _ in iterator:
+        # Zero backprop gradients
+        optimizer.zero_grad()
+        # Get output from model
+        output = model(X_train_tensor)
+        # Calc loss and backprop derivatives
+        loss = -mll(output, y_train_tensor)
+        loss.backward()
+        iterator.set_postfix(loss=loss.item())
+        optimizer.step()
+        torch.cuda.empty_cache()
 
 for kernel in kernels:
     # Initialize the Gaussian Process model and likelihood
-    likelihood = gpytorch.likelihoods.BernoulliLikelihood()
+    likelihood = gpytorch.likelihoods.GaussianLikelihood()
     model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
 
     if torch.cuda.is_available():
@@ -166,10 +158,10 @@ for kernel in kernels:
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     # "Loss" for GPs - the marginal log likelihood
-    mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=len(y_train__tensor))
+    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
     # Train the model
-    train_GP(model,X_train__tensor,y_train__tensor,training_iterations,mll,optimizer)
+    train(model,X_train__tensor,y_train__tensor)
     
     # Set the model in evaluation mode
     model.eval()
@@ -177,16 +169,16 @@ for kernel in kernels:
 
     # Make predictions on the validation set
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        output = model(X_val_tensor)
-        preds = likelihood(output)
+        y_pred = model(X_val_tensor)
 
-    # Calculate accuracy
-    accuracy = accuracy_score(y_val_tensor, preds.mean.ge(0.5).float())
+    # Calculate RMSE
+    RMSE = torch.sqrt(torch.mean(torch.square(y_val_tensor - y_pred.mean)))
 
-    # Update the best kernel if the current kernel has a higher accuracy
-    if accuracy > best_accuracy:
-        best_accuracy = accuracy
+    # Update the best kernel if the current kernel has a lower RMSE
+    if RMSE < best_RMSE:
+        best_RMSE = RMSE
         best_kernel = kernel
+
 
 # Set the random seed for reproducibility
 
@@ -202,23 +194,23 @@ class ExactGPModel(gpytorch.models.ExactGP):
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 # Define the learning params
-training_iterations = GP_ITERATIONS
+training_iterations = 1000
 
 # Initialize the Gaussian Process model and likelihood
-likelihood = gpytorch.likelihoods.BernoulliLikelihood()
+likelihood = gpytorch.likelihoods.GaussianLikelihood()
 model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood)
 
 # Use the adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # "Loss" for GPs - the marginal log likelihood
-mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=len(y_train_tensor))
+mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
 if torch.cuda.is_available():
     model = model.cuda()
 
 # Train the model
-train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer)
+train(model,X_train_tensor,y_train_tensor)
 
 # Set the model in evaluation mode
 model.eval()
@@ -226,12 +218,31 @@ likelihood.eval()
 
 # Make predictions on the validation set
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
-    output = model(X_test_tensor)
-    preds = likelihood(output)
+    y_pred = model(X_test_tensor)
 
-# Calculate accuracy
-accuracy_GP = accuracy_score(y_test_tensor, preds.mean.ge(0.5).float())
-print("Accuracy GP: ", accuracy_GP)
+# Calculate RMSE
+RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
+print("RMSE GP: ", RMSE_GP)
+
+# #### Define train function
+def train(model,criterion,loss_Adam,optimizer,training_iterations,X_train_tensor,y_train_tensor):
+    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
+
+    for _ in iterator:
+        # making a pridiction in forward pass
+        y_train_hat = model(X_train_tensor).reshape(-1,)
+        # calculating the loss between original and predicted data points
+        loss = criterion(y_train_hat, torch.Tensor(y_train_tensor))
+        # store loss into list
+        loss_Adam.append(loss.item())
+        # zeroing gradients after each iteration
+        optimizer.zero_grad()
+        # backward pass for computing the gradients of the loss w.r.t to learnable parameters
+        loss.backward()
+        # updating the parameters after each iteration
+        optimizer.step()
+        iterator.set_postfix(loss=loss.item())
+        torch.cuda.empty_cache()
 
 # #### MLP
 d_out = 1  
@@ -249,38 +260,36 @@ def MLP_opt(trial):
 
     MLP_model = MLP(
     d_in=d_in,
-    d_out=1,  # For binary classification, output dimension should be 1
+    d_out=d_out,
     n_blocks=n_blocks,
     d_block=d_block,
     dropout=dropout,
     )
-    n_epochs=N_EPOCHS
+    n_epochs=trial.suggest_int('n_epochs', 100, 5000)
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+    criterion = torch.nn.MSELoss()
     loss_Adam=[]
 
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
     
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_MLP = torch.sigmoid(MLP_model(X_val_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_MLP = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_MLP.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,))
+    RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_MLP)))
 
-    return accuracy_MLP
+    return RMSE_MLP
 
 sampler_MLP = optuna.samplers.TPESampler(seed=seed)
-study_MLP = optuna.create_study(sampler=sampler_MLP, direction='maximize')  # We want to maximize accuracy
+study_MLP = optuna.create_study(sampler=sampler_MLP, direction='minimize')
 study_MLP.optimize(MLP_opt, n_trials=N_TRIALS)
 
 MLP_model = MLP(
     d_in=d_in,
-    d_out=1,  # For binary classification, output dimension should be 1
+    d_out=d_out,
     n_blocks=study_MLP.best_params['n_blocks'],
     d_block=study_MLP.best_params['d_block'],
     dropout=study_MLP.best_params['dropout'],
@@ -293,15 +302,15 @@ n_epochs=study_MLP.best_params['n_epochs']
 learning_rate=study_MLP.best_params['learning_rate']
 weight_decay=study_MLP.best_params['weight_decay']
 optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_no_early_stopping(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+train(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_MLP = torch.sigmoid(MLP_model(X_test_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_MLP = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_MLP.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy MLP: ", accuracy_MLP)
+y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,))
+RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_MLP)))
+print("RMSE MLP: ", RMSE_MLP)
 
 # #### ResNet
 d_out = 1  
@@ -321,7 +330,7 @@ def ResNet_opt(trial):
 
     ResNet_model = ResNet(
     d_in=d_in,
-    d_out=1,  # For binary classification, output dimension should be 1
+    d_out=d_out,
     n_blocks=n_blocks,
     d_block=d_block,
     d_hidden=None,
@@ -331,30 +340,28 @@ def ResNet_opt(trial):
     )
     if torch.cuda.is_available():
         ResNet_model = ResNet_model.cuda()
-    n_epochs=N_EPOCHS
+    n_epochs=trial.suggest_int('n_epochs', 100, 5000)
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+    criterion = torch.nn.MSELoss()
     loss_Adam=[]
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_ResNet = torch.sigmoid(ResNet_model(X_val_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_ResNet = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_ResNet.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,))
+    RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_ResNet)))
 
-    return accuracy_ResNet
+    return RMSE_ResNet
 
 sampler_ResNet = optuna.samplers.TPESampler(seed=seed)
-study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='maximize')  # We want to maximize accuracy
+study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='minimize')
 study_ResNet.optimize(ResNet_opt, n_trials=N_TRIALS)
 
 ResNet_model = ResNet(
     d_in=d_in,
-    d_out=1,  # For binary classification, output dimension should be 1
+    d_out=d_out,
     n_blocks=study_ResNet.best_params['n_blocks'],
     d_block=study_ResNet.best_params['d_block'],
     d_hidden=None,
@@ -370,17 +377,36 @@ n_epochs=study_ResNet.best_params['n_epochs']
 learning_rate=study_ResNet.best_params['learning_rate']
 weight_decay=study_ResNet.best_params['weight_decay']
 optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_no_early_stopping(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+train(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_ResNet = torch.sigmoid(ResNet_model(X_test_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_ResNet = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_ResNet.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy ResNet: ", accuracy_ResNet)
+y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,))
+RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_ResNet)))
+print("RMSE ResNet: ", RMSE_ResNet)
 
 # #### FFTransformer
+
+def train_trans(model,criterion,loss_Adam,optimizer,training_iterations,X_train_tensor,y_train_tensor):
+    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
+
+    for _ in iterator:
+        # making a pridiction in forward pass
+        y_train_hat = model(X_train_tensor, None).reshape(-1,)
+        # calculating the loss between original and predicted data points
+        loss = criterion(y_train_hat, torch.Tensor(y_train_tensor))
+        # store loss into list
+        loss_Adam.append(loss.item())
+        # zeroing gradients after each iteration
+        optimizer.zero_grad()
+        # backward pass for computing the gradients of the loss w.r.t to learnable parameters
+        loss.backward()
+        # updating the parameters after each iteration
+        optimizer.step()
+        iterator.set_postfix(loss=loss.item())
+        torch.cuda.empty_cache()
 
 d_out = 1  
 d_in=X_train_.shape[1]
@@ -402,7 +428,7 @@ def FTTrans_opt(trial):
     FTTrans_model = FTTransformer(
     n_cont_features=d_in,
     cat_cardinalities=[],
-    d_out=1,  # For binary classification, output dimension should be 1
+    d_out=d_out,
     n_blocks=n_blocks,
     d_block=d_block_multiplier*attention_n_heads,
     attention_n_heads=attention_n_heads,
@@ -416,32 +442,30 @@ def FTTrans_opt(trial):
     if torch.cuda.is_available():
         FTTrans_model = FTTrans_model.cuda()
 
-    n_epochs=N_EPOCHS
+    n_epochs=trial.suggest_int('n_epochs', 100, 5000)
     learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+    criterion = torch.nn.MSELoss()
     loss_Adam=[]
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train_trans(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train__tensor,y_train__tensor)
 
     # Point prediction
-    y_val_hat_FTTrans = torch.sigmoid(FTTrans_model(X_val_tensor, None).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_FTTrans = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,))
+    RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
-    return accuracy_FTTrans
+    return RMSE_FTTrans
 
 sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
-study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='maximize')  # We want to maximize accuracy
+study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='minimize')
 study_FTTrans.optimize(FTTrans_opt, n_trials=N_TRIALS)
 
 
 FTTrans_model = FTTransformer(
     n_cont_features=d_in,
     cat_cardinalities=[],
-    d_out=1,  # For binary classification, output dimension should be 1
+    d_out=d_out,
     n_blocks=study_FTTrans.best_params['n_blocks'],
     d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
     attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
@@ -459,15 +483,15 @@ n_epochs=study_FTTrans.best_params['n_epochs']
 learning_rate=study_FTTrans.best_params['learning_rate']
 weight_decay=study_FTTrans.best_params['weight_decay']
 optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_trans_no_early_stopping(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+train_trans(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
 
 # Point prediction
-y_test_hat_FTTrans = torch.sigmoid(FTTrans_model(X_test_tensor, None).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_FTTrans = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy FTTrans: ", accuracy_FTTrans)
+y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,))
+RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_FTTrans)))
+print("RMSE FTTrans: ", RMSE_FTTrans)
 
 # #### Boosted trees, random forest, engression, linear regression
 
@@ -479,17 +503,17 @@ def boosted(trial):
               'max_depth': trial.suggest_int('max_depth', 1, 30),
               'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
     
-    boosted_tree_model=lgbm.LGBMClassifier(**params)
+    boosted_tree_model=lgbm.LGBMRegressor(**params)
     boosted_tree_model.fit(X_train_, y_train_)
     y_val_hat_boost=boosted_tree_model.predict(X_val)
-    accuracy_boost=accuracy_score(y_val, y_val_hat_boost)
+    RMSE_boost=np.sqrt(np.mean((y_val-y_val_hat_boost)**2))
 
-    return accuracy_boost
+    return RMSE_boost
 
 sampler_boost = optuna.samplers.TPESampler(seed=seed)
-study_boost = optuna.create_study(sampler=sampler_boost, direction='maximize')
+study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
 study_boost.optimize(boosted, n_trials=N_TRIALS)
-boosted_model=lgbm.LGBMClassifier(**study_boost.best_params)
+boosted_model=lgbm.LGBMRegressor(**study_boost.best_params)
 
 def rf(trial):
 
@@ -498,17 +522,18 @@ def rf(trial):
               'max_features': trial.suggest_int('max_features', 1, 30),
               'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100)}
     
-    rf_model=RandomForestClassifier(**params)
+    rf_model=RandomForestRegressor(**params)
     rf_model.fit(X_train_, y_train_)
     y_val_hat_rf=rf_model.predict(X_val)
-    accuracy_rf=accuracy_score(y_val, y_val_hat_rf)
+    RMSE_rf=np.sqrt(np.mean((y_val-y_val_hat_rf)**2))
 
-    return accuracy_rf
+    return RMSE_rf
 
 sampler_rf = optuna.samplers.TPESampler(seed=seed)
-study_rf = optuna.create_study(sampler=sampler_rf, direction='maximize')
+study_rf = optuna.create_study(sampler=sampler_rf, direction='minimize')
 study_rf.optimize(rf, n_trials=N_TRIALS)
-rf_model=RandomForestClassifier(**study_rf.best_params)
+rf_model=RandomForestRegressor(**study_rf.best_params)
+
 
 def engressor_NN(trial):
 
@@ -520,59 +545,51 @@ def engressor_NN(trial):
 
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
     if torch.cuda.is_available():
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, device="cuda")
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, device="cuda")
     else: 
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True)
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
     
     # Generate a sample from the engression model for each data point
     y_val_hat_engression=engressor_model.predict(X_val_tensor, target="mean")
-    y_val_hat_engression = y_val_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
+    RMSE_engression=torch.sqrt(torch.mean(torch.square(y_val_tensor.reshape(-1,1) - y_val_hat_engression)))
 
-    accuracy_engression = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_engression.cpu().numpy())  # Calculate accuracy
-
-    return accuracy_engression
+    return RMSE_engression
 
 sampler_engression = optuna.samplers.TPESampler(seed=seed)
-study_engression = optuna.create_study(sampler=sampler_engression, direction='maximize')  # We want to maximize accuracy
+study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')
 study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
 
 
-# Fit the boosted model and make predictions
 boosted_model.fit(X_train, y_train)
-y_test_hat_boosted = boosted_model.predict(X_test)
-accuracy_boosted = accuracy_score(y_test, y_test_hat_boosted)
+y_test_hat_boosted=boosted_model.predict(X_test)
+RMSE_boosted=np.sqrt(np.mean((y_test-y_test_hat_boosted)**2))
 
-# Fit the random forest model and make predictions
 rf_model.fit(X_train, y_train)
-y_test_hat_rf = rf_model.predict(X_test)
-accuracy_rf = accuracy_score(y_test, y_test_hat_rf)
+y_test_hat_rf=rf_model.predict(X_test)
+RMSE_rf=np.sqrt(np.mean((y_test-y_test_hat_rf)**2))
 
-# Fit the logistic regression model and make predictions
-log_reg = LogisticRegression()
-log_reg.fit(X_train, y_train)
-y_test_hat_logreg = log_reg.predict(X_test)
-accuracy_logreg = accuracy_score(y_test, y_test_hat_logreg)
+lin_reg=LinearRegression()
+lin_reg.fit(X_train, y_train)
+y_test_hat_linreg=lin_reg.predict(X_test)
+RMSE_linreg=np.sqrt(np.mean((y_test-y_test_hat_linreg)**2))
 
-# Engression model
 params=study_engression.best_params
 params['noise_dim']=params['hidden_dim']
 # Check if CUDA is available and if so, move the tensors and the model to the GPU
 if torch.cuda.is_available():
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, device="cuda")
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, device="cuda")
 else: 
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True)
-# Assuming the model outputs probabilities for the two classes
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
 y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
-# Convert the probabilities to class labels
-y_test_hat_engression = y_test_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
-accuracy_engression = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate accuracy
+RMSE_engression=torch.sqrt(torch.mean(torch.square(y_test_tensor.reshape(-1,1) - y_test_hat_engression)))
 
-print("Accuracy logistic regression: ", accuracy_logreg)
-print("Accuracy boosted trees: ", accuracy_boosted)
-print("Accuracy random forest: ", accuracy_rf)
-print("Accuracy engression: ", accuracy_engression)
 
-# GAM model
+print("RMSE linear regression: ",RMSE_linreg)
+print("RMSE boosted trees", RMSE_boosted)
+print("RMSE random forest", RMSE_rf)
+print("RMSE engression", RMSE_engression)
+
+#### GAM model
 def gam_model(trial):
 
     # Define the hyperparameters to optimize
@@ -580,41 +597,41 @@ def gam_model(trial):
               'lam': trial.suggest_loguniform('lam', 1e-3, 1)}
 
     # Create and train the model
-    gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
+    gam = LinearGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
 
-    # Predict on the validation set and calculate the accuracy
+    # Predict on the validation set and calculate the RMSE
     y_val_hat_gam = gam.predict(X_val)
-    accuracy_gam = accuracy_score(y_val, y_val_hat_gam)
+    RMSE_gam = np.sqrt(np.mean((y_val - y_val_hat_gam) ** 2))
 
-    return accuracy_gam
+    return RMSE_gam
 
 # Create the sampler and study
 sampler_gam = optuna.samplers.TPESampler(seed=seed)
-study_gam = optuna.create_study(sampler=sampler_gam, direction='maximize')
+study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
 
 # Optimize the model
 study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
 # Create the final model with the best parameters
 best_params = study_gam.best_params
-final_gam_model = LogisticGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
+final_gam_model = LinearGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
 
 # Fit the model
 final_gam_model.fit(X_train, y_train)
 
 # Predict on the test set
 y_test_hat_gam = final_gam_model.predict(X_test)
-# Calculate the accuracy
-accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
-print("Accuracy GAM: ", accuracy_gam)
+# Calculate the RMSE
+RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
+print("RMSE GAM: ", RMSE_gam)
 
-accuracy_results = {'GP': accuracy_GP, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'linear_regression': accuracy_linreg, 'engression': accuracy_engression, 'GAM': accuracy_gam}  
+RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression, 'GAM': RMSE_gam}  
 
 # Convert the dictionary to a DataFrame
-df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])
+df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
 
 # Create the directory if it doesn't exist
-os.makedirs('RESULTS/SPATIAL_DEPTH', exist_ok=True)
+os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
 
 # Save the DataFrame to a CSV file
-df.to_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_accuracy_results.csv', index=False)
+df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv', index=False)
