@@ -97,7 +97,7 @@ y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
 # Convert to use GPU if available
 if torch.cuda.is_available():
-    print("Using GPU")
+    print("Using GPU yo")
     X_train__tensor = X_train__tensor.cuda()
     y_train__tensor = y_train__tensor.cuda()
     X_train_tensor = X_train_tensor.cuda()
@@ -107,7 +107,7 @@ if torch.cuda.is_available():
     X_test_tensor = X_test_tensor.cuda()
     y_test_tensor = y_test_tensor.cuda()
 else:
-    print("Using CPU")
+    print("Using CPU yo")
 print(X_train__tensor.device)
 
 # Create flattened versions of the data
