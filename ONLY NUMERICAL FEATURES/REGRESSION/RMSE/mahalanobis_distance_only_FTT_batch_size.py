@@ -162,11 +162,12 @@ def train_2_ft(model, criterion, loss_list, optimizer, training_iterations, trai
             # Calculate average validation loss
             val_loss /= num_batches
 
-            # Check if early stopping condition is met
-            early_stopping(val_loss, model)
+        # Check if early stopping condition is met
+        early_stopping(val_loss, model)
 
-            if early_stopping.early_stop:
-                print("Early stopping")
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
 
     return n_epochs
 
