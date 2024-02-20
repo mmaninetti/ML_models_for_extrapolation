@@ -241,6 +241,8 @@ def FTTrans_opt(trial):
             predictions.append(batch_predictions.cpu().numpy())
 
     y_val_hat_FTTrans = torch.Tensor(np.concatenate(predictions))
+    if torch.cuda.is_available():
+        y_val_hat_FTTrans = y_val_hat_FTTrans.cuda()
     RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
     return RMSE_FTTrans
