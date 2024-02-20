@@ -23,7 +23,7 @@ import gpytorch
 import tqdm.auto as tqdm
 import os
 from pygam import LinearGAM, s, f
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
 
 
@@ -99,7 +99,7 @@ y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
 # Convert to use GPU if available
 if torch.cuda.is_available():
-    print("Using GPU yo")
+    print("Using GPU")
     X_train__tensor = X_train__tensor.cuda()
     y_train__tensor = y_train__tensor.cuda()
     X_train_tensor = X_train_tensor.cuda()
@@ -109,8 +109,7 @@ if torch.cuda.is_available():
     X_test_tensor = X_test_tensor.cuda()
     y_test_tensor = y_test_tensor.cuda()
 else:
-    print("Using CPU yo")
-print(X_train__tensor.device)
+    print("Using CPU")
 
 # Create flattened versions of the data
 y_val_np = y_val.values.flatten()
@@ -128,21 +127,9 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-'''
+
 #### Gaussian process
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood, kernel):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
 # Define the learning params
-training_iterations = GP_ITERATIONS
 
 # Define the kernels
 kernels = [
@@ -171,7 +158,9 @@ for kernel in kernels:
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
     # Train the model
-    train_GP(model,X_train__tensor,y_train__tensor,training_iterations,mll,optimizer)
+    model.train()
+    likelihood.train()
+    train_GP(model,X_train__tensor,y_train__tensor,GP_ITERATIONS,mll,optimizer)
     
     # Set the model in evaluation mode
     model.eval()
@@ -189,26 +178,9 @@ for kernel in kernels:
         best_RMSE = RMSE
         best_kernel = kernel
 
-
-# Set the random seed for reproducibility
-
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = best_kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Define the learning params
-training_iterations = GP_ITERATIONS
-
 # Initialize the Gaussian Process model and likelihood
 likelihood = gpytorch.likelihoods.GaussianLikelihood()
-model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood)
+model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, best_kernel)
 
 # Use the adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -220,7 +192,9 @@ if torch.cuda.is_available():
     model = model.cuda()
 
 # Train the model
-train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer)
+model.train()
+likelihood.train()
+train_GP(model,X_train_tensor,y_train_tensor,GP_ITERATIONS,mll,optimizer)
 
 # Set the model in evaluation mode
 model.eval()
@@ -232,7 +206,7 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
 
 # Calculate RMSE
 RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
-print("RMSE GP: ", RMSE_GP)'''
+print("RMSE GP: ", RMSE_GP)
 
 
 #### MLP
@@ -306,7 +280,7 @@ optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_deca
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader, test_loader)
+train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
 predictions = []
@@ -397,7 +371,7 @@ weight_decay=study_ResNet.best_params['weight_decay']
 optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
 
-train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader, test_loader)
+train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
 predictions = []
@@ -499,7 +473,7 @@ weight_decay=study_FTTrans.best_params['weight_decay']
 optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
 
-train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader, test_loader)
+train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
 predictions = []
