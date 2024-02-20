@@ -1,10 +1,11 @@
 import numpy as np
 import torch
 import tqdm.auto as tqdm
+import gpytorch
 
 #### Define early stopping function
 class EarlyStopping:
-    def __init__(self, patience=40, verbose=False, delta=0):
+    def __init__(self, patience=40, verbose=False, delta=0, path='checkpoint.pt'):
         self.patience = patience
         self.verbose = verbose
         self.counter = 0
@@ -12,17 +13,15 @@ class EarlyStopping:
         self.early_stop = False
         self.val_loss_min = np.Inf
         self.delta = delta
+        self.path = path
 
     def __call__(self, val_loss, model):
-
         score = -val_loss
-
         if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(val_loss, model)
         elif score < self.best_score + self.delta:
             self.counter += 1
-            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
@@ -31,118 +30,179 @@ class EarlyStopping:
             self.counter = 0
 
     def save_checkpoint(self, val_loss, model):
-        if self.verbose:
-            print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
-        torch.save(model.state_dict(), 'checkpoint.pt')
+        '''Saves model when validation loss decrease.'''
+        torch.save(model.state_dict(), self.path)
         self.val_loss_min = val_loss
 
 #### Define train function
-def train(model, criterion, loss_Adam, optimizer, training_iterations, X_train_tensor, y_train_tensor, X_val_tensor, y_val_tensor, early_stopping):
+def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
     for _ in iterator:
         n_epochs += 1
-        # making a prediction in forward pass
-        y_train_hat = model(X_train_tensor).reshape(-1,)
-        # calculating the loss between original and predicted data points
-        loss = criterion(y_train_hat, y_train_tensor)
-        # store loss into list
-        loss_Adam.append(loss.item())
-        # zeroing gradients after each iteration
-        optimizer.zero_grad()
-        # backward pass for computing the gradients of the loss w.r.t to learnable parameters
-        loss.backward()
-        # updating the parameters after each iteration
-        optimizer.step()
-        iterator.set_postfix(loss=loss.item())
-        torch.cuda.empty_cache()
+        for batch_X, batch_y in train_loader:
+            # Move batch to device
+            if torch.cuda.is_available():
+                batch_X = batch_X.cuda()
+                batch_y = batch_y.cuda()
 
-        # validate the model 
-        y_val_hat = model(X_val_tensor).reshape(-1,)
-        val_loss = criterion(y_val_hat, y_val_tensor)
+            # Zero the gradients
+            optimizer.zero_grad()
 
-        # check if early stopping condition is met
+            # Forward pass
+            outputs = model(batch_X).reshape(-1,)
+            loss = criterion(outputs, batch_y)
+
+            # Backward pass and optimize
+            loss.backward()
+            optimizer.step()
+
+            iterator.set_postfix(loss=loss.item())
+
+        # Validation
+        with torch.no_grad():
+            val_loss = 0
+            num_batches = 0
+            for batch_X, batch_y in val_loader:
+                # Move batch to device
+                if torch.cuda.is_available():
+                    batch_X = batch_X.cuda()
+                    batch_y = batch_y.cuda()
+
+                # Forward pass and calculate loss
+                outputs = model(batch_X).reshape(-1,)
+                batch_loss = criterion(outputs, batch_y)
+
+                # Accumulate batch loss
+                val_loss += batch_loss.item()
+                num_batches += 1
+
+            # Calculate average validation loss
+            val_loss /= num_batches
+
+        # Check if early stopping condition is met
         early_stopping(val_loss, model)
 
         if early_stopping.early_stop:
             print("Early stopping")
+            # Load the best model parameters
+            model.load_state_dict(torch.load('checkpoint.pt'))
+            n_epochs=n_epochs-early_stopping.patience
             break
+
     return n_epochs
 
 
-#### Define train function for transformer
-def train_trans(model, criterion, loss_Adam, optimizer, training_iterations, X_train_tensor, y_train_tensor, X_val_tensor, y_val_tensor, early_stopping):
+def train_trans(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
     for _ in iterator:
         n_epochs += 1
-        # making a pridiction in forward pass
-        y_train_hat = model(X_train_tensor, None).reshape(-1,)
-        # calculating the loss between original and predicted data points
-        loss = criterion(y_train_hat, y_train_tensor)
-        # store loss into list
-        loss_Adam.append(loss.item())
-        # zeroing gradients after each iteration
-        optimizer.zero_grad()
-        # backward pass for computing the gradients of the loss w.r.t to learnable parameters
-        loss.backward()
-        # updating the parameters after each iteration
-        optimizer.step()
-        iterator.set_postfix(loss=loss.item())
-        torch.cuda.empty_cache()
+        for batch_X, batch_y in train_loader:
+            # Move batch to device
+            if torch.cuda.is_available():
+                batch_X = batch_X.cuda()
+                batch_y = batch_y.cuda()
 
-        # validate the model 
-        y_val_hat = model(X_val_tensor, None).reshape(-1,)
-        val_loss = criterion(y_val_hat, y_val_tensor)
+            # Zero the gradients
+            optimizer.zero_grad()
 
-        # check if early stopping condition is met
+            # Forward pass
+            outputs = model(batch_X, None).reshape(-1,)
+            loss = criterion(outputs, batch_y)
+
+            # Backward pass and optimize
+            loss.backward()
+            optimizer.step()
+
+            iterator.set_postfix(loss=loss.item())
+
+        # Validation
+        with torch.no_grad():
+            val_loss = 0
+            num_batches = 0
+            for batch_X, batch_y in val_loader:
+                # Move batch to device
+                if torch.cuda.is_available():
+                    batch_X = batch_X.cuda()
+                    batch_y = batch_y.cuda()
+
+                # Forward pass and calculate loss
+                outputs = model(batch_X, None).reshape(-1,)
+                batch_loss = criterion(outputs, batch_y)
+
+                # Accumulate batch loss
+                val_loss += batch_loss.item()
+                num_batches += 1
+
+            # Calculate average validation loss
+            val_loss /= num_batches
+
+        # Check if early stopping condition is met
         early_stopping(val_loss, model)
 
         if early_stopping.early_stop:
             print("Early stopping")
+            # Load the best model parameters
+            model.load_state_dict(torch.load('checkpoint.pt'))
+            n_epochs=n_epochs-early_stopping.patience
             break
-        return n_epochs
 
-def train_no_early_stopping(model, criterion, loss_Adam, optimizer, training_iterations, X_train_tensor, y_train_tensor):
+    return n_epochs
+
+def train_no_early_stopping(model, criterion, optimizer, training_iterations, train_loader):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
+    n_epochs=0
     for _ in iterator:
-        # making a prediction in forward pass
-        y_train_hat = model(X_train_tensor).reshape(-1,)
-        # calculating the loss between original and predicted data points
-        loss = criterion(y_train_hat, y_train_tensor)
-        # store loss into list
-        loss_Adam.append(loss.item())
-        # zeroing gradients after each iteration
-        optimizer.zero_grad()
-        # backward pass for computing the gradients of the loss w.r.t to learnable parameters
-        loss.backward()
-        # updating the parameters after each iteration
-        optimizer.step()
-        iterator.set_postfix(loss=loss.item())
-        torch.cuda.empty_cache()
+        n_epochs += 1
+        for batch_X, batch_y in train_loader:
+            # Move batch to device
+            if torch.cuda.is_available():
+                batch_X = batch_X.cuda()
+                batch_y = batch_y.cuda()
+
+            # Zero the gradients
+            optimizer.zero_grad()
+
+            # Forward pass
+            outputs = model(batch_X).reshape(-1,)
+            loss = criterion(outputs, batch_y)
+
+            # Backward pass and optimize
+            loss.backward()
+            optimizer.step()
+
+            iterator.set_postfix(loss=loss.item())
 
 #### Define train function for transformer
-def train_trans_no_early_stopping(model, criterion, loss_Adam, optimizer, training_iterations, X_train_tensor, y_train_tensor):
+def train_trans_no_early_stopping(model, criterion, optimizer, training_iterations, train_loader):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
+    n_epochs=0
     for _ in iterator:
-        # making a pridiction in forward pass
-        y_train_hat = model(X_train_tensor, None).reshape(-1,)
-        # calculating the loss between original and predicted data points
-        loss = criterion(y_train_hat, y_train_tensor)
-        # store loss into list
-        loss_Adam.append(loss.item())
-        # zeroing gradients after each iteration
-        optimizer.zero_grad()
-        # backward pass for computing the gradients of the loss w.r.t to learnable parameters
-        loss.backward()
-        # updating the parameters after each iteration
-        optimizer.step()
-        iterator.set_postfix(loss=loss.item())
-        torch.cuda.empty_cache()
+        n_epochs += 1
+        for batch_X, batch_y in train_loader:
+            # Move batch to device
+            if torch.cuda.is_available():
+                batch_X = batch_X.cuda()
+                batch_y = batch_y.cuda()
+
+            # Zero the gradients
+            optimizer.zero_grad()
+
+            # Forward pass
+            outputs = model(batch_X,None).reshape(-1,)
+            loss = criterion(outputs, batch_y)
+
+            # Backward pass and optimize
+            loss.backward()
+            optimizer.step()
+
+            iterator.set_postfix(loss=loss.item())
+
 
 def train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
@@ -158,5 +218,17 @@ def train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimiz
         iterator.set_postfix(loss=loss.item())
         optimizer.step()
         torch.cuda.empty_cache()
+
+
+class ExactGPModel(gpytorch.models.ExactGP):
+    def __init__(self, train_x, train_y, likelihood, kernel):
+        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = kernel
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 
