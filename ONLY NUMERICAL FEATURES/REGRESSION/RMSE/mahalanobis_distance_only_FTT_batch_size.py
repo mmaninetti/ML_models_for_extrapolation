@@ -137,6 +137,8 @@ def train_2_ft(model, criterion, loss_list, optimizer, training_iterations, trai
             loss.backward()
             optimizer.step()
 
+            iterator.set_postfix(loss=loss.item())
+
         # validate the model 
         #y_val_hat = model(X_val_tensor, None).reshape(-1,)
         #val_loss = criterion(y_val_hat, y_val_tensor)
@@ -162,11 +164,12 @@ def train_2_ft(model, criterion, loss_list, optimizer, training_iterations, trai
             # Calculate average validation loss
             val_loss /= num_batches
 
-            # Check if early stopping condition is met
-            early_stopping(val_loss, model)
+        # Check if early stopping condition is met
+        early_stopping(val_loss, model)
 
-            if early_stopping.early_stop:
-                print("Early stopping")
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
 
     return n_epochs
 
@@ -238,6 +241,8 @@ def FTTrans_opt(trial):
             predictions.append(batch_predictions.cpu().numpy())
 
     y_val_hat_FTTrans = torch.Tensor(np.concatenate(predictions))
+    if torch.cuda.is_available():
+        y_val_hat_FTTrans = y_val_hat_FTTrans.cuda()
     RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
     return RMSE_FTTrans
