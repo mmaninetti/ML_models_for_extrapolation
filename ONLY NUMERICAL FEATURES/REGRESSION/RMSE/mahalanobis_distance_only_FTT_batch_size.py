@@ -139,22 +139,30 @@ def train_2_ft(model, criterion, loss_list, optimizer, n_epochs, train_loader, v
 
         # Validation
         with torch.no_grad():
+            val_loss = 0
+            num_batches = 0
             for batch_X, batch_y in val_loader:
                 # Move batch to device
                 if torch.cuda.is_available():
                     batch_X = batch_X.cuda()
                     batch_y = batch_y.cuda()
 
-                # Forward pass and calculate loss and metrics
+                # Forward pass and calculate loss
                 outputs = model(batch_X, None).reshape(-1,)
-                val_loss = criterion(outputs, batch_y)
+                batch_loss = criterion(outputs, batch_y)
 
-                # check if early stopping condition is met
-                early_stopping(val_loss, model)
+                # Accumulate batch loss
+                val_loss += batch_loss.item()
+                num_batches += 1
 
-                if early_stopping.early_stop:
-                    print("Early stopping")
-                    break
+            # Calculate average validation loss
+            val_loss /= num_batches
+
+            # Check if early stopping condition is met
+            early_stopping(val_loss, model)
+
+            if early_stopping.early_stop:
+                print("Early stopping")
 
     return n_epochs
 
