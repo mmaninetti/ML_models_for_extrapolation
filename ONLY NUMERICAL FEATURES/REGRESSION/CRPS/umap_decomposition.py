@@ -25,7 +25,8 @@ from drf import drf
 from sklearn.metrics.pairwise import euclidean_distances
 import os
 from pygam import LinearGAM, s, f
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping,train_GP
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
+from torch.utils.data import TensorDataset, DataLoader
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -46,6 +47,7 @@ N_SAMPLES=100
 PATIENCE=40
 N_EPOCHS=1000
 GP_ITERATIONS=1000
+BATCH_SIZE=1024
 seed=10
 torch.cuda.manual_seed_all(seed)
 np.random.seed(seed)
@@ -117,21 +119,19 @@ if torch.cuda.is_available():
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
 
+# Create TensorDatasets for training and validation sets
+train__dataset = TensorDataset(X_train__tensor, y_train__tensor)
+train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
+test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
+
+# Create DataLoaders for training and validation sets
+train__loader = DataLoader(train__dataset, batch_size=BATCH_SIZE, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
 #### Gaussian process
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood, kernel):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Define the learning params
-training_iterations = GP_ITERATIONS
-
 # Define the kernels
 kernels = [
     gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
@@ -159,7 +159,10 @@ for kernel in kernels:
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
     # Train the model
-    train_GP(model,X_train__tensor,y_train__tensor,training_iterations,mll,optimizer)
+    model.train()
+    likelihood.train()
+
+    train_GP(model,X_train__tensor,y_train__tensor,GP_ITERATIONS,mll,optimizer)
     
     # Set the model in evaluation mode
     model.eval()
@@ -185,25 +188,9 @@ for kernel in kernels:
         best_kernel = kernel
 
 
-# Set the random seed for reproducibility
-
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = best_kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Define the learning params
-training_iterations = GP_ITERATIONS
-
 # Initialize the Gaussian Process model and likelihood
 likelihood = gpytorch.likelihoods.GaussianLikelihood()
-model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood)
+model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, best_kernel)
 
 # Use the adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -215,7 +202,9 @@ if torch.cuda.is_available():
     model = model.cuda()
 
 # Train the model
-train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer)
+model.train()
+likelihood.train()
+train_GP(model,X_train_tensor,y_train_tensor,GP_ITERATIONS,mll,optimizer)
 
 # Set the model in evaluation mode
 model.eval()
@@ -237,6 +226,7 @@ CRPS_GP = np.mean(crps_values)
 
 # Update the best kernel if the current kernel has a lower CRPS
 print('CRPS_GP: ', CRPS_GP)
+
 
 # #### MLP
 d_out = 1  
@@ -264,17 +254,22 @@ def MLP_opt(trial):
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
-    loss_Adam=[]
 
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
-    
+
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
-    y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,)).detach().numpy()
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in val_loader:
+            batch_predictions = MLP_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_val_hat_MLP = np.concatenate(predictions)
 
     # Estimate standard deviation of the prediction error
     std_dev_error = np.std(y_val - y_val_hat_MLP)
@@ -307,12 +302,17 @@ learning_rate=study_MLP.best_params['learning_rate']
 weight_decay=study_MLP.best_params['weight_decay']
 optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
-loss_Adam=[]
 
-train_no_early_stopping(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor)
+train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
-y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,)).detach().numpy()
+predictions = []
+with torch.no_grad():
+    for batch_X, _ in test_loader:
+        batch_predictions = MLP_model(batch_X).reshape(-1,)
+        predictions.append(batch_predictions.cpu().numpy())
+
+y_test_hat_MLP = np.concatenate(predictions)
 
 # Estimate standard deviation of the prediction error
 std_dev_error = np.std(y_test - y_test_hat_MLP)
@@ -361,14 +361,19 @@ def ResNet_opt(trial):
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
-    loss_Adam=[]
 
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs=train(ResNet_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
-    y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,)).detach().numpy()
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in val_loader:
+            batch_predictions = ResNet_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_val_hat_ResNet = np.concatenate(predictions)
 
     # Estimate standard deviation of the prediction error
     std_dev_error = np.std(y_val - y_val_hat_ResNet)
@@ -404,12 +409,17 @@ learning_rate=study_ResNet.best_params['learning_rate']
 weight_decay=study_ResNet.best_params['weight_decay']
 optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
-loss_Adam=[]
 
-train_no_early_stopping(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
-y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,)).detach().numpy()
+predictions = []
+with torch.no_grad():
+    for batch_X, _ in test_loader:
+        batch_predictions = ResNet_model(batch_X).reshape(-1,)
+        predictions.append(batch_predictions.cpu().numpy())
+
+y_test_hat_ResNet = np.concatenate(predictions)
 
 # Estimate standard deviation of the prediction error
 std_dev_error = np.std(y_test - y_test_hat_ResNet)
@@ -462,14 +472,19 @@ def FTTrans_opt(trial):
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
-    loss_Adam=[]
 
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train_trans(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
-    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,)).detach().numpy()
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in val_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_val_hat_FTTrans = np.concatenate(predictions)
 
     # Estimate standard deviation of the prediction error
     std_dev_error = np.std(y_val - y_val_hat_FTTrans)
@@ -504,17 +519,22 @@ FTTrans_model = FTTransformer(
 if torch.cuda.is_available():
     FTTrans_model = FTTrans_model.cuda()
 
-n_epochs=study_FTTrans.best_params['n_epochs']
+n_epochs=study_FTTrans.best_params['n_epochs'] 
 learning_rate=study_FTTrans.best_params['learning_rate']
 weight_decay=study_FTTrans.best_params['weight_decay']
 optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
-loss_Adam=[]
 
-train_trans_no_early_stopping(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
-y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,)).detach().numpy()
+predictions = []
+with torch.no_grad():
+    for batch_X, _ in test_loader:
+        batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+        predictions.append(batch_predictions.cpu().numpy())
+
+y_test_hat_FTTrans = np.concatenate(predictions)
 
 # Estimate standard deviation of the prediction error
 std_dev_error = np.std(y_test - y_test_hat_FTTrans)
@@ -596,9 +616,9 @@ def engressor_NN(trial):
 
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
     if torch.cuda.is_available():
-        engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000).cuda()
+        engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE).cuda()
     else:
-        engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
+        engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE)
     
     # Generate a sample from the engression model for each data point
     y_val_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_val.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_val))]
@@ -655,9 +675,9 @@ y_train_tensor = torch.Tensor(np.array(y_train).reshape(-1,1))
 
 # Check if CUDA is available and if so, move the tensors and the model to the GPU
 if torch.cuda.is_available():
-    engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000).cuda()
+    engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE).cuda()
 else:
-    engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000)
+    engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE)
 # Generate a sample from the engression model for each data point
 y_test_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_test.values[i]])).cuda() if torch.cuda.is_available() else torch.Tensor(np.array([X_test.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_test))]
 # Calculate the CRPS for each prediction

@@ -240,7 +240,6 @@ def MLP_opt(trial):
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
     n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
-    print("n_epochs: ", n_epochs)
 
     # Point prediction
     predictions = []
@@ -276,7 +275,6 @@ learning_rate=study_MLP.best_params['learning_rate']
 weight_decay=study_MLP.best_params['weight_decay']
 optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
-loss_Adam=[]
 
 train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
@@ -576,7 +574,6 @@ else:
     engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE)
 y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
 RMSE_engression=torch.sqrt(torch.mean(torch.square(y_test_tensor.reshape(-1,1) - y_test_hat_engression)))
-
 
 print("RMSE linear regression: ",RMSE_linreg)
 print("RMSE boosted trees", RMSE_boosted)
