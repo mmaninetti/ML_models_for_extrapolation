@@ -128,6 +128,7 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
+'''
 #### Gaussian process
 class ExactGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood, kernel):
@@ -231,7 +232,7 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
 
 # Calculate RMSE
 RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
-print("RMSE GP: ", RMSE_GP)
+print("RMSE GP: ", RMSE_GP)'''
 
 
 #### MLP
@@ -267,6 +268,7 @@ def MLP_opt(trial):
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
     n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    print("n_epochs: ", n_epochs)
 
     # Point prediction
     predictions = []

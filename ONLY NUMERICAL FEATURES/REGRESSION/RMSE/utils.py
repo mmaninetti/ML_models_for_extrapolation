@@ -151,7 +151,7 @@ def train_trans(model, criterion, optimizer, training_iterations, train_loader, 
 
     return n_epochs
 
-def train_no__early_stopping(model, criterion, optimizer, training_iterations, train_loader):
+def train_no_early_stopping(model, criterion, optimizer, training_iterations, train_loader):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
