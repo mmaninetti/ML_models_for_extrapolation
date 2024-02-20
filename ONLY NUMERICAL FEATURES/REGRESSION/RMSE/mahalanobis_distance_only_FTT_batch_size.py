@@ -114,8 +114,12 @@ print(X_train__tensor.device)
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
 
-def train_2_ft(model, criterion, loss_list, optimizer, n_epochs, train_loader, val_loader, early_stopping):
-    for epoch in range(n_epochs):
+def train_2_ft(model, criterion, loss_list, optimizer, training_iterations, train_loader, val_loader, early_stopping):
+    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
+
+    n_epochs=0
+    for _ in iterator:
+        n_epochs += 1
         for batch_X, batch_y in train_loader:
             # Move batch to device
             if torch.cuda.is_available():
@@ -134,8 +138,8 @@ def train_2_ft(model, criterion, loss_list, optimizer, n_epochs, train_loader, v
             optimizer.step()
 
         # validate the model 
-        y_val_hat = model(X_val_tensor, None).reshape(-1,)
-        val_loss = criterion(y_val_hat, y_val_tensor)
+        #y_val_hat = model(X_val_tensor, None).reshape(-1,)
+        #val_loss = criterion(y_val_hat, y_val_tensor)
 
         # Validation
         with torch.no_grad():
