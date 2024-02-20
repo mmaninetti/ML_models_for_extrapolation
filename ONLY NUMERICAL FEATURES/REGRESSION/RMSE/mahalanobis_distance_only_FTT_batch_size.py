@@ -231,6 +231,7 @@ def FTTrans_opt(trial):
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
     n_epochs=train_2_ft(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, train_loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    print("n_epochs: ", n_epochs)
 
     # Point prediction
     
