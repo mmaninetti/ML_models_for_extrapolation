@@ -87,7 +87,7 @@ def train(model, criterion, optimizer, training_iterations, train_loader, val_lo
             print("Early stopping")
             # Load the best model parameters
             model.load_state_dict(torch.load('checkpoint.pt'))
-            n_epochs=n_epochs-PATIENCE
+            n_epochs=n_epochs-early_stopping.patience
             break
 
     return n_epochs
@@ -146,7 +146,7 @@ def train_trans(model, criterion, optimizer, training_iterations, train_loader, 
             print("Early stopping")
             # Load the best model parameters
             model.load_state_dict(torch.load('checkpoint.pt'))
-            n_epochs=n_epochs-PATIENCE
+            n_epochs=n_epochs-early_stopping.patience
             break
 
     return n_epochs
