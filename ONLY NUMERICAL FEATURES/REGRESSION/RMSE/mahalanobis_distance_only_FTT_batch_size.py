@@ -114,7 +114,7 @@ print(X_train__tensor.device)
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
 
-def train_2_ft(model, criterion, loss_list, optimizer, n_epochs, train_loader, X_val_tensor, y_val_tensor, early_stopping):
+def train_2_ft(model, criterion, loss_list, optimizer, n_epochs, train_loader, val_loader, early_stopping):
     for epoch in range(n_epochs):
         for batch_X, batch_y in train_loader:
             # Move batch to device
@@ -137,12 +137,25 @@ def train_2_ft(model, criterion, loss_list, optimizer, n_epochs, train_loader, X
         y_val_hat = model(X_val_tensor, None).reshape(-1,)
         val_loss = criterion(y_val_hat, y_val_tensor)
 
-        # check if early stopping condition is met
-        early_stopping(val_loss, model)
+        # Validation
+        with torch.no_grad():
+            for batch_X, batch_y in val_loader:
+                # Move batch to device
+                if torch.cuda.is_available():
+                    batch_X = batch_X.cuda()
+                    batch_y = batch_y.cuda()
 
-        if early_stopping.early_stop:
-            print("Early stopping")
-            break
+                # Forward pass and calculate loss and metrics
+                outputs = model(batch_X).reshape(-1,)
+                val_loss = criterion(outputs, batch_y)
+
+                # check if early stopping condition is met
+                early_stopping(val_loss, model)
+
+                if early_stopping.early_stop:
+                    print("Early stopping")
+                    break
+
     return n_epochs
 
 
@@ -180,7 +193,7 @@ def FTTrans_opt(trial):
     )
 
     # Define your batch size
-    batch_size = 32
+    batch_size = 256
 
     # Create TensorDatasets for training and validation sets
     train_dataset = TensorDataset(X_train__tensor, y_train__tensor)
@@ -201,11 +214,18 @@ def FTTrans_opt(trial):
     loss_Adam=[]
 
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train_2_ft(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, train_loader, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs=train_2_ft(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, train_loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
-    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,))
+    
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in val_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_val_hat_FTTrans = np.concatenate(predictions)
     RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
     return RMSE_FTTrans
