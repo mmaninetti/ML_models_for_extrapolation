@@ -237,7 +237,7 @@ def FTTrans_opt(trial):
             batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
-    y_val_hat_FTTrans = np.concatenate(predictions)
+    y_val_hat_FTTrans = torch.Tensor(np.concatenate(predictions))
     RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
     return RMSE_FTTrans
