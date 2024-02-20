@@ -22,7 +22,8 @@ import gpytorch
 import tqdm.auto as tqdm
 import os
 from pygam import LinearGAM, s, f
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping,train_GP
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
+from torch.utils.data import TensorDataset, DataLoader
 
 import rpy2.robjects as robjects
 from rpy2.robjects import pandas2ri
@@ -47,6 +48,7 @@ N_SAMPLES=100
 PATIENCE=40
 N_EPOCHS=1000
 GP_ITERATIONS=1000
+BATCH_SIZE=1024
 seed=10
 torch.cuda.manual_seed_all(seed)
 np.random.seed(seed)
@@ -114,21 +116,19 @@ if torch.cuda.is_available():
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
 
+# Create TensorDatasets for training and validation sets
+train__dataset = TensorDataset(X_train__tensor, y_train__tensor)
+train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
+test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
+
+# Create DataLoaders for training and validation sets
+train__loader = DataLoader(train__dataset, batch_size=BATCH_SIZE, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
 #### Gaussian process
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood, kernel):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Define the learning params
-training_iterations = GP_ITERATIONS
-
 # Define the kernels
 kernels = [
     gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
@@ -139,6 +139,7 @@ kernels = [
 
 best_RMSE = float('inf')
 best_kernel = None
+
 
 for kernel in kernels:
     # Initialize the Gaussian Process model and likelihood
@@ -155,7 +156,9 @@ for kernel in kernels:
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
     # Train the model
-    train_GP(model,X_train__tensor,y_train__tensor,training_iterations,mll,optimizer)
+    model.train()
+    likelihood.train()
+    train_GP(model,X_train__tensor,y_train__tensor,GP_ITERATIONS,mll,optimizer)
     
     # Set the model in evaluation mode
     model.eval()
@@ -173,26 +176,9 @@ for kernel in kernels:
         best_RMSE = RMSE
         best_kernel = kernel
 
-
-# Set the random seed for reproducibility
-
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = best_kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Define the learning params
-training_iterations = GP_ITERATIONS
-
 # Initialize the Gaussian Process model and likelihood
 likelihood = gpytorch.likelihoods.GaussianLikelihood()
-model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood)
+model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, best_kernel)
 
 # Use the adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -204,7 +190,9 @@ if torch.cuda.is_available():
     model = model.cuda()
 
 # Train the model
-train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer)
+model.train()
+likelihood.train()
+train_GP(model,X_train_tensor,y_train_tensor,GP_ITERATIONS,mll,optimizer)
 
 # Set the model in evaluation mode
 model.eval()
@@ -217,6 +205,7 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
 # Calculate RMSE
 RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
 print("RMSE GP: ", RMSE_GP)
+
 
 #### MLP
 d_out = 1  
@@ -244,17 +233,25 @@ def MLP_opt(trial):
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
-    loss_Adam=[]
 
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
 
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    print("n_epochs: ", n_epochs)
 
     # Point prediction
-    y_val_hat_MLP = (MLP_model(X_val_tensor).reshape(-1,))
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in val_loader:
+            batch_predictions = MLP_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_val_hat_MLP = torch.Tensor(np.concatenate(predictions))
+    if torch.cuda.is_available():
+        y_val_hat_MLP = y_val_hat_MLP.cuda()
     RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_MLP)))
 
     return RMSE_MLP
@@ -281,10 +278,18 @@ optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_deca
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_no_early_stopping(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor)
+train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
-y_test_hat_MLP = (MLP_model(X_test_tensor).reshape(-1,))
+predictions = []
+with torch.no_grad():
+    for batch_X, _ in test_loader:
+        batch_predictions = MLP_model(batch_X).reshape(-1,)
+        predictions.append(batch_predictions.cpu().numpy())
+
+y_test_hat_MLP = torch.Tensor(np.concatenate(predictions))
+if torch.cuda.is_available():
+    y_test_hat_MLP = y_test_hat_MLP.cuda()
 RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_MLP)))
 print("RMSE MLP: ", RMSE_MLP)
 
@@ -321,14 +326,21 @@ def ResNet_opt(trial):
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
-    loss_Adam=[]
 
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs=train(ResNet_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
-    y_val_hat_ResNet = (ResNet_model(X_val_tensor).reshape(-1,))
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in val_loader:
+            batch_predictions = ResNet_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_val_hat_ResNet = torch.Tensor(np.concatenate(predictions))
+    if torch.cuda.is_available():
+        y_val_hat_ResNet = y_val_hat_ResNet.cuda()
     RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_ResNet)))
 
     return RMSE_ResNet
@@ -356,12 +368,19 @@ learning_rate=study_ResNet.best_params['learning_rate']
 weight_decay=study_ResNet.best_params['weight_decay']
 optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
-loss_Adam=[]
 
-train_no_early_stopping(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor)
+train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
-y_test_hat_ResNet = (ResNet_model(X_test_tensor).reshape(-1,))
+predictions = []
+with torch.no_grad():
+    for batch_X, _ in test_loader:
+        batch_predictions = ResNet_model(batch_X).reshape(-1,)
+        predictions.append(batch_predictions.cpu().numpy())
+
+y_test_hat_ResNet = torch.Tensor(np.concatenate(predictions))
+if torch.cuda.is_available():
+    y_test_hat_ResNet = y_test_hat_ResNet.cuda()
 RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_ResNet)))
 print("RMSE ResNet: ", RMSE_ResNet)
 
@@ -405,14 +424,21 @@ def FTTrans_opt(trial):
     weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
     optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
-    loss_Adam=[]
 
     early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train_trans(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
-    y_val_hat_FTTrans = (FTTrans_model(X_val_tensor, None).reshape(-1,))
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in val_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_val_hat_FTTrans = torch.Tensor(np.concatenate(predictions))
+    if torch.cuda.is_available():
+        y_val_hat_FTTrans = y_val_hat_FTTrans.cuda()
     RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_val_tensor - y_val_hat_FTTrans)))
 
     return RMSE_FTTrans
@@ -444,12 +470,20 @@ learning_rate=study_FTTrans.best_params['learning_rate']
 weight_decay=study_FTTrans.best_params['weight_decay']
 optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
-loss_Adam=[]
 
-train_trans_no_early_stopping(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train_tensor, y_train_tensor)
+train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
-y_test_hat_FTTrans = (FTTrans_model(X_test_tensor, None).reshape(-1,))
+predictions = []
+with torch.no_grad():
+    for batch_X, _ in test_loader:
+        batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+        predictions.append(batch_predictions.cpu().numpy())
+
+y_test_hat_FTTrans = torch.Tensor(np.concatenate(predictions))
+if torch.cuda.is_available():
+    y_test_hat_FTTrans = y_test_hat_FTTrans.cuda()
+
 RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_FTTrans)))
 print("RMSE FTTrans: ", RMSE_FTTrans)
 
