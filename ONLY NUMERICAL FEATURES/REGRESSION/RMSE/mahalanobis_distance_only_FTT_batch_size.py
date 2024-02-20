@@ -262,7 +262,7 @@ def FTTrans_opt(trial):
     )
 
     # Define your batch size
-    batch_size = 256
+    batch_size = 1024 #256
 
     # Create TensorDatasets for training and validation sets
     train_dataset = TensorDataset(X_train__tensor, y_train__tensor)
