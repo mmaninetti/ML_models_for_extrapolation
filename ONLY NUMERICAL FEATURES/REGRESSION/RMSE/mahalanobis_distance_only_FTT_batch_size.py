@@ -146,7 +146,7 @@ def train_2_ft(model, criterion, loss_list, optimizer, n_epochs, train_loader, v
                     batch_y = batch_y.cuda()
 
                 # Forward pass and calculate loss and metrics
-                outputs = model(batch_X).reshape(-1,)
+                outputs = model(batch_X, None).reshape(-1,)
                 val_loss = criterion(outputs, batch_y)
 
                 # check if early stopping condition is met
