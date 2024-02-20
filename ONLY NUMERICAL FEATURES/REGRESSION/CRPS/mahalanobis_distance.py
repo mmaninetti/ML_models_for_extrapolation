@@ -1,5 +1,5 @@
 import os
-os.environ['R_HOME'] = '/u/mmaninetti/miniconda3/envs/bench_env/lib/R'
+#os.environ['R_HOME'] = '/u/mmaninetti/miniconda3/envs/bench_env/lib/R'
 import pandas as pd
 import numpy as np
 import setuptools
