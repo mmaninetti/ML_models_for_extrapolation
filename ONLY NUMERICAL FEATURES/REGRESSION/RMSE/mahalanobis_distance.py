@@ -274,7 +274,7 @@ def MLP_opt(trial):
     predictions = []
     with torch.no_grad():
         for batch_X, _ in val_loader:
-            batch_predictions = MLP_model(batch_X, None).reshape(-1,)
+            batch_predictions = MLP_model(batch_X).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
     y_val_hat_MLP = torch.Tensor(np.concatenate(predictions))
@@ -312,7 +312,7 @@ train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader,
 predictions = []
 with torch.no_grad():
     for batch_X, _ in test_loader:
-        batch_predictions = MLP_model(batch_X, None).reshape(-1,)
+        batch_predictions = MLP_model(batch_X).reshape(-1,)
         predictions.append(batch_predictions.cpu().numpy())
 
 y_test_hat_MLP = torch.Tensor(np.concatenate(predictions))
@@ -363,7 +363,7 @@ def ResNet_opt(trial):
     predictions = []
     with torch.no_grad():
         for batch_X, _ in val_loader:
-            batch_predictions = ResNet_model(batch_X, None).reshape(-1,)
+            batch_predictions = ResNet_model(batch_X).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
     y_val_hat_ResNet = torch.Tensor(np.concatenate(predictions))
@@ -403,7 +403,7 @@ train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_load
 predictions = []
 with torch.no_grad():
     for batch_X, _ in test_loader:
-        batch_predictions = ResNet_model(batch_X, None).reshape(-1,)
+        batch_predictions = ResNet_model(batch_X).reshape(-1,)
         predictions.append(batch_predictions.cpu().numpy())
 
 y_test_hat_ResNet = torch.Tensor(np.concatenate(predictions))
