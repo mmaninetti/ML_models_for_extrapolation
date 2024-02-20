@@ -137,6 +137,9 @@ def boosted(trial):
               'max_depth': trial.suggest_int('max_depth', 1, 30),
               'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
     
+    if torch.cuda.is_available():
+        params['device']="gpu"
+    
     boosted_tree_model=lgbm.LGBMRegressor(**params)
     boosted_tree_model.fit(X_train_, y_train_)
     y_val_hat_boost=boosted_tree_model.predict(X_val)
@@ -147,6 +150,8 @@ def boosted(trial):
 sampler_boost = optuna.samplers.TPESampler(seed=seed)
 study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
 study_boost.optimize(boosted, n_trials=N_TRIALS)
+if torch.cuda.is_available():
+        study_boost.best_params['device']="gpu"
 boosted_model=lgbm.LGBMRegressor(**study_boost.best_params)
 
 def rf(trial):
