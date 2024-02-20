@@ -280,7 +280,7 @@ optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_deca
 criterion = torch.nn.MSELoss()
 loss_Adam=[]
 
-train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader, test_loader)
+train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
 predictions = []
@@ -371,7 +371,7 @@ weight_decay=study_ResNet.best_params['weight_decay']
 optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
 
-train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader, test_loader)
+train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
 predictions = []
@@ -473,7 +473,7 @@ weight_decay=study_FTTrans.best_params['weight_decay']
 optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 criterion = torch.nn.MSELoss()
 
-train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader, test_loader)
+train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
 
 # Point prediction
 predictions = []
