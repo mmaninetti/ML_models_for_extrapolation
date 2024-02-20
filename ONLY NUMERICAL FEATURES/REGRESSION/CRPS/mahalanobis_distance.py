@@ -1,4 +1,5 @@
-
+import os
+os.environ['R_HOME'] = '/u/mmaninetti/miniconda3/envs/bench_env/lib/R'
 import pandas as pd
 import numpy as np
 import setuptools
@@ -25,7 +26,6 @@ import tqdm.auto as tqdm
 from lightgbmlss.model import *
 from lightgbmlss.distributions.Gaussian import *
 from drf import drf
-import os
 from pygam import LinearGAM, s, f
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
