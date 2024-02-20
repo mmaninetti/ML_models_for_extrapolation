@@ -137,6 +137,8 @@ def train_2_ft(model, criterion, loss_list, optimizer, training_iterations, trai
             loss.backward()
             optimizer.step()
 
+            iterator.set_postfix(loss=loss.item())
+
         # validate the model 
         #y_val_hat = model(X_val_tensor, None).reshape(-1,)
         #val_loss = criterion(y_val_hat, y_val_tensor)
