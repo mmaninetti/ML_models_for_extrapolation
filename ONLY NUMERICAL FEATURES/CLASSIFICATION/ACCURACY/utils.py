@@ -237,7 +237,7 @@ class ExactGPModel(gpytorch.models.ExactGP):
 
 class GPClassificationModel(AbstractVariationalGP):
     def __init__(self, train_x, kernel):
-        variational_distribution = CholeskyVariationalDistribution(10)
+        variational_distribution = CholeskyVariationalDistribution(train_x.size(0))
         variational_strategy = VariationalStrategy(self, train_x, variational_distribution)
         super(GPClassificationModel, self).__init__(variational_strategy)
         self.mean_module = gpytorch.means.ConstantMean()
