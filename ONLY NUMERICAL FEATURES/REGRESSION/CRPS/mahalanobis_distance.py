@@ -1,5 +1,4 @@
 import os
-from drf import drf
 import pandas as pd
 import numpy as np
 import setuptools
@@ -28,6 +27,7 @@ from lightgbmlss.distributions.Gaussian import *
 from pygam import LinearGAM, s, f
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
+from drf import drf
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
