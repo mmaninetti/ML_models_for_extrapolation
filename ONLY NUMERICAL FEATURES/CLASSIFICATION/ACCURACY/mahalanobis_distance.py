@@ -27,12 +27,12 @@ from torch import nn
 from torch.optim import Adam
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder 
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel, GPClassificationModel
-from torch.utils.data import TensorDataset, DataLoader
 from gpytorch.models import AbstractVariationalGP
 from gpytorch.variational import CholeskyVariationalDistribution
 from gpytorch.variational import VariationalStrategy
 from gpytorch.mlls.variational_elbo import VariationalELBO
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel, GPClassificationModel
+from torch.utils.data import TensorDataset, DataLoader
 
 #SUITE_ID = 336 # Regression on numerical features
 SUITE_ID = 337 # Classification on numerical features
@@ -164,7 +164,7 @@ for kernel in kernels:
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     # "Loss" for GPs - the marginal log likelihood
-    mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=len(y_train__tensor))
+    mll = VariationalELBO(likelihood, model, num_data=len(y_train__tensor))
 
     model.train()
     likelihood.train()
@@ -197,7 +197,7 @@ model = GPClassificationModel(X_train_tensor, best_kernel)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 # "Loss" for GPs - the marginal log likelihood
-mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=len(y_train_tensor))
+mll = VariationalELBO(likelihood, model, num_data=len(y_train_tensor))
 
 if torch.cuda.is_available():
     model = model.cuda()
