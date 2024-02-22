@@ -2,6 +2,9 @@ import numpy as np
 import torch
 import tqdm.auto as tqdm
 import gpytorch
+from gpytorch.models import AbstractVariationalGP
+from gpytorch.variational import CholeskyVariationalDistribution
+from gpytorch.variational import VariationalStrategy
 
 #### Define early stopping function
 class EarlyStopping:
