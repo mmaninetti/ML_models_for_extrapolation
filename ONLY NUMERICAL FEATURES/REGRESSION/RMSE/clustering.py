@@ -35,6 +35,10 @@ for task_id in benchmark_suite.tasks:
 
     print(f"Task {task_id}")
 
+    # Create the checkpoint directory if it doesn't exist
+    os.makedirs('CHECKPOINTS/CLUSTERING', exist_ok=True)
+    CHECKPOINT_PATH = f'CHECKPOINTS/CLUSTERING/task_{task_id}.pt'
+
     task = openml.tasks.get_task(task_id)  # download the OpenML task
     dataset = task.get_dataset()
 
@@ -277,8 +281,8 @@ for task_id in benchmark_suite.tasks:
         if torch.cuda.is_available():
             MLP_model = MLP_model.cuda()
 
-        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-        n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
         n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
         print("n_epochs: ", n_epochs)
 
@@ -367,8 +371,8 @@ for task_id in benchmark_suite.tasks:
         optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         criterion = torch.nn.MSELoss()
 
-        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-        n_epochs=train(ResNet_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train(ResNet_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
         n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
         # Point prediction
@@ -465,8 +469,8 @@ for task_id in benchmark_suite.tasks:
         optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         criterion = torch.nn.MSELoss()
 
-        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-        n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
         n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
         # Point prediction
