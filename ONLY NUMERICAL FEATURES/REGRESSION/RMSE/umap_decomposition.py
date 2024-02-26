@@ -30,7 +30,7 @@ SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-for task_id in benchmark_suite.tasks:
+for task_id in benchmark_suite.tasks[5:]:
 
     # Create the checkpoint directory if it doesn't exist
     os.makedirs('CHECKPOINTS/UMAP', exist_ok=True)
