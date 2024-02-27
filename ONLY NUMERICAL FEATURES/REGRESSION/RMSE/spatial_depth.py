@@ -532,16 +532,17 @@ rf_model=RandomForestRegressor(**study_rf.best_params)
 def engressor_NN(trial):
 
     params = {'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.01, log=True),
-              'num_epoches': trial.suggest_int('num_epoches', 100, 1000),
-              'num_layer': trial.suggest_int('num_layer', 2, 5),
-              'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),}
+            'num_epoches': trial.suggest_int('num_epoches', 100, 1000),
+            'num_layer': trial.suggest_int('num_layer', 2, 5),
+            'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),
+            'resblock': trial.suggest_categorical('resblock', [True, False])}
     params['noise_dim']=params['hidden_dim']
 
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
     if torch.cuda.is_available():
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, device="cuda")
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'], device="cuda")
     else: 
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE)
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'])
     
     # Generate a sample from the engression model for each data point
     y_val_hat_engression=engressor_model.predict(X_val_tensor, target="mean")
@@ -571,9 +572,9 @@ params=study_engression.best_params
 params['noise_dim']=params['hidden_dim']
 # Check if CUDA is available and if so, move the tensors and the model to the GPU
 if torch.cuda.is_available():
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, device="cuda")
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'], device="cuda")
 else: 
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE)
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'])
 y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
 RMSE_engression=torch.sqrt(torch.mean(torch.square(y_test_tensor.reshape(-1,1) - y_test_hat_engression)))
 
