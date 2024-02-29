@@ -26,7 +26,8 @@ from torch import nn
 from torch.optim import Adam
 from sklearn.metrics import log_loss
 from sklearn.preprocessing import LabelEncoder
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
+from torch.utils.data import TensorDataset, DataLoader
 
 
 #SUITE_ID = 336 # Regression on numerical features
@@ -36,6 +37,13 @@ SUITE_ID = 337 # Classification on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 task_id=361055
+
+# Create the checkpoint directory if it doesn't exist
+os.makedirs('CHECKPOINTS/CLUSTERING', exist_ok=True)
+CHECKPOINT_PATH = f'CHECKPOINTS/CLUSTERING/task_{task_id}.pt'
+
+print(f"Task {task_id}")
+
 task = openml.tasks.get_task(task_id)  # download the OpenML task
 dataset = task.get_dataset()
 
@@ -56,6 +64,7 @@ N_SAMPLES=100
 PATIENCE=40
 N_EPOCHS=1000
 GP_ITERATIONS=1000
+BATCH_SIZE=1024
 seed=10
 torch.cuda.manual_seed_all(seed)
 np.random.seed(seed)
@@ -163,6 +172,18 @@ if torch.cuda.is_available():
 # Create flattened versions of the data
 y_val_np = y_val.values.flatten()
 y_test_np = y_test.values.flatten()
+
+# Create TensorDatasets for training and validation sets
+train__dataset = TensorDataset(X_train__tensor, y_train__tensor)
+train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
+test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
+
+# Create DataLoaders for training and validation sets
+train__loader = DataLoader(train__dataset, batch_size=BATCH_SIZE, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 #### Gaussian process
 # Define your model
@@ -303,8 +324,8 @@ def MLP_opt(trial):
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
     
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+    n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
     n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
     # Point prediction
@@ -554,14 +575,15 @@ def engressor_NN(trial):
     params = {'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.01, log=True),
               'num_epoches': trial.suggest_int('num_epoches', 100, 1000),
               'num_layer': trial.suggest_int('num_layer', 2, 5),
-              'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),}
+              'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),
+              'resblock': trial.suggest_categorical('resblock', [True, False])}
     params['noise_dim']=params['hidden_dim']
 
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
     if torch.cuda.is_available():
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, device="cuda")
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'], device="cuda")
     else: 
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True)
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'])
     
     # Generate a sample from the engression model for each data point
     y_val_hat_engression = engressor_model.predict(X_val_tensor, target="mean")  # Get predicted probabilities
@@ -595,9 +617,9 @@ params=study_engression.best_params
 params['noise_dim']=params['hidden_dim']
 # Check if CUDA is available and if so, move the tensors and the model to the GPU
 if torch.cuda.is_available():
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, device="cuda")
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'], device="cuda")
 else: 
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True)
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'])
 # Assuming the model outputs probabilities for the two classes
 y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
 # Assuming the model outputs probabilities for the two classes

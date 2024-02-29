@@ -4,7 +4,7 @@ import tqdm.auto as tqdm
 import gpytorch
 
 #### Define early stopping function
-class EarlyStopping:
+class EarlyStopping():
     def __init__(self, patience=40, verbose=False, delta=0, path='checkpoint.pt'):
         self.patience = patience
         self.verbose = verbose
@@ -35,7 +35,7 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
 #### Define train function
-def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping):
+def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping, checkpoint_path):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
@@ -87,14 +87,14 @@ def train(model, criterion, optimizer, training_iterations, train_loader, val_lo
         if early_stopping.early_stop:
             print("Early stopping")
             # Load the best model parameters
-            model.load_state_dict(torch.load('checkpoint.pt'))
+            model.load_state_dict(torch.load(checkpoint_path))
             n_epochs=n_epochs-early_stopping.patience
             break
 
     return n_epochs
 
 
-def train_trans(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping):
+def train_trans(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping, checkpoint_path):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
@@ -146,7 +146,7 @@ def train_trans(model, criterion, optimizer, training_iterations, train_loader, 
         if early_stopping.early_stop:
             print("Early stopping")
             # Load the best model parameters
-            model.load_state_dict(torch.load('checkpoint.pt'))
+            model.load_state_dict(torch.load(checkpoint_path))
             n_epochs=n_epochs-early_stopping.patience
             break
 
