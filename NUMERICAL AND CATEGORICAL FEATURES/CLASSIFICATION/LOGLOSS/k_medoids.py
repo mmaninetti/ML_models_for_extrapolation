@@ -37,6 +37,13 @@ SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 task_id=361110
+
+# Create the checkpoint directory if it doesn't exist
+os.makedirs('CHECKPOINTS/K_MEDOIDS', exist_ok=True)
+CHECKPOINT_PATH = f'CHECKPOINTS/K_MEDOIDS/task_{task_id}.pt'
+
+print(f"Task {task_id}")
+
 task = openml.tasks.get_task(task_id)  # download the OpenML task
 dataset = task.get_dataset()
 
@@ -565,14 +572,15 @@ def engressor_NN(trial):
     params = {'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.01, log=True),
               'num_epoches': trial.suggest_int('num_epoches', 100, 1000),
               'num_layer': trial.suggest_int('num_layer', 2, 5),
-              'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),}
+              'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),
+              'resblock': trial.suggest_categorical('resblock', [True, False])}
     params['noise_dim']=params['hidden_dim']
 
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
     if torch.cuda.is_available():
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, device="cuda")
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'], device="cuda")
     else: 
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True)
+        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'])
     
     # Generate a sample from the engression model for each data point
     y_val_hat_engression = engressor_model.predict(X_val_tensor, target="mean")  # Get predicted probabilities
@@ -606,9 +614,9 @@ params=study_engression.best_params
 params['noise_dim']=params['hidden_dim']
 # Check if CUDA is available and if so, move the tensors and the model to the GPU
 if torch.cuda.is_available():
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, device="cuda")
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'], device="cuda")
 else: 
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True)
+    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'])
 # Assuming the model outputs probabilities for the two classes
 y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
 # Assuming the model outputs probabilities for the two classes
@@ -656,7 +664,7 @@ y_test_hat_gam = final_gam_model.predict_proba(X_test)
 log_loss_gam = log_loss(y_test, y_test_hat_gam)
 print("Log Loss GAM: ", log_loss_gam)
 
-log_loss_results = {'GP': log_loss_GP, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'linear_regression': log_loss_linreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}  
+log_loss_results = {'GP': log_loss_GP, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'linear_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}  
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])

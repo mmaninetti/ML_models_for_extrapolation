@@ -35,7 +35,7 @@ class EarlyStopping():
         self.val_loss_min = val_loss
 
 #### Define train function
-def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping,checkpoint_path):
+def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping, checkpoint_path):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0

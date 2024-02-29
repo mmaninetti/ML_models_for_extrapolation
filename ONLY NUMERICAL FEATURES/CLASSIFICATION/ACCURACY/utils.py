@@ -2,12 +2,9 @@ import numpy as np
 import torch
 import tqdm.auto as tqdm
 import gpytorch
-from gpytorch.models import AbstractVariationalGP
-from gpytorch.variational import CholeskyVariationalDistribution
-from gpytorch.variational import VariationalStrategy
 
 #### Define early stopping function
-class EarlyStopping:
+class EarlyStopping():
     def __init__(self, patience=40, verbose=False, delta=0, path='checkpoint.pt'):
         self.patience = patience
         self.verbose = verbose
@@ -38,7 +35,7 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
 #### Define train function
-def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping):
+def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping, checkpoint_path):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
@@ -90,14 +87,14 @@ def train(model, criterion, optimizer, training_iterations, train_loader, val_lo
         if early_stopping.early_stop:
             print("Early stopping")
             # Load the best model parameters
-            model.load_state_dict(torch.load('checkpoint.pt'))
+            model.load_state_dict(torch.load(checkpoint_path))
             n_epochs=n_epochs-early_stopping.patience
             break
 
     return n_epochs
 
 
-def train_trans(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping):
+def train_trans(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping, checkpoint_path):
     iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
@@ -149,7 +146,7 @@ def train_trans(model, criterion, optimizer, training_iterations, train_loader, 
         if early_stopping.early_stop:
             print("Early stopping")
             # Load the best model parameters
-            model.load_state_dict(torch.load('checkpoint.pt'))
+            model.load_state_dict(torch.load(checkpoint_path))
             n_epochs=n_epochs-early_stopping.patience
             break
 
@@ -235,16 +232,3 @@ class ExactGPModel(gpytorch.models.ExactGP):
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 
-class GPClassificationModel(AbstractVariationalGP):
-    def __init__(self, train_x, kernel):
-        variational_distribution = CholeskyVariationalDistribution(train_x.size(0))
-        variational_strategy = VariationalStrategy(self, train_x, variational_distribution)
-        super(GPClassificationModel, self).__init__(variational_strategy)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        latent_pred = gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-        return latent_pred
