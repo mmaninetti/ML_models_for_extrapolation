@@ -123,8 +123,6 @@ for task_id in benchmark_suite.tasks:
     # Create flattened versions of the data
     y_val_np = y_val.values.flatten()
     y_test_np = y_test.values.flatten()
-    #y_val_np = y_val_tensor.flatten()
-    #y_test_np = y_test_tensor.flatten()
 
     # Create TensorDatasets for training and validation sets
     train__dataset = TensorDataset(X_train__tensor, y_train__tensor)
