@@ -121,10 +121,10 @@ for task_id in benchmark_suite.tasks:
         y_test_tensor = y_test_tensor.cuda()
 
     # Create flattened versions of the data
-    #y_val_np = y_val.values.flatten()
-    #y_test_np = y_test.values.flatten()
-    y_val_np = y_val_tensor.flatten()
-    y_test_np = y_test_tensor.flatten()
+    y_val_np = y_val.values.flatten()
+    y_test_np = y_test.values.flatten()
+    #y_val_np = y_val_tensor.flatten()
+    #y_test_np = y_test_tensor.flatten()
 
     # Create TensorDatasets for training and validation sets
     train__dataset = TensorDataset(X_train__tensor, y_train__tensor)
@@ -180,8 +180,8 @@ for task_id in benchmark_suite.tasks:
             y_pred = model(X_val_tensor)
 
         # Calculate CRPS
-        y_pred_np = y_pred.mean.numpy().flatten()
-        y_pred_std_np = y_pred.stddev.numpy().flatten()
+        y_pred_np = y_pred.cpu().mean.numpy().flatten()
+        y_pred_std_np = y_pred.cpu().stddev.numpy().flatten()
 
         # Calculate the CRPS for each prediction
         crps_values = [crps_gaussian(y_val_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_val_np))]
@@ -222,8 +222,8 @@ for task_id in benchmark_suite.tasks:
         y_pred = model(X_test_tensor)
 
     # Calculate CRPS
-    y_pred_np = y_pred.mean.numpy().flatten()
-    y_pred_std_np = y_pred.stddev.numpy().flatten()
+    y_pred_np = y_pred.cpu().mean.numpy().flatten()
+    y_pred_std_np = y_pred.cpu().stddev.numpy().flatten()
 
     # Calculate the CRPS for each prediction
     crps_values = [crps_gaussian(y_test_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_test_np))]
