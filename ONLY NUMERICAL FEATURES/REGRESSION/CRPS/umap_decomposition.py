@@ -34,130 +34,173 @@ SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-task_id=361072
+#task_id=361072
+for task_id in benchmark_suite.tasks:
 
-# Create the checkpoint directory if it doesn't exist
-os.makedirs('CHECKPOINTS/UMAP', exist_ok=True)
-CHECKPOINT_PATH = f'CHECKPOINTS/UMAP/task_{task_id}.pt'
+    print(f"Task {task_id}")
 
-print(f"Task {task_id}")
+    # Create the checkpoint directory if it doesn't exist
+    os.makedirs('CHECKPOINTS/UMAP', exist_ok=True)
+    CHECKPOINT_PATH = f'CHECKPOINTS/UMAP/task_{task_id}.pt'
 
-task = openml.tasks.get_task(task_id)  # download the OpenML task
-dataset = task.get_dataset()
+    print(f"Task {task_id}")
 
-X, y, categorical_indicator, attribute_names = dataset.get_data(
-        dataset_format="dataframe", target=dataset.default_target_attribute)
+    task = openml.tasks.get_task(task_id)  # download the OpenML task
+    dataset = task.get_dataset()
 
-# Set the random seed for reproducibility
-N_TRIALS=100
-N_SAMPLES=100
-PATIENCE=40
-N_EPOCHS=1000
-GP_ITERATIONS=1000
-BATCH_SIZE=1024
-seed=10
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-random.seed(seed)
+    X, y, categorical_indicator, attribute_names = dataset.get_data(
+            dataset_format="dataframe", target=dataset.default_target_attribute)
 
-
-# Apply UMAP decomposition
-umap = UMAP(n_components=2, random_state=42)
-X_umap = umap.fit_transform(X)
-
-# calculate the Euclidean distance matrix
-euclidean_dist_matrix = euclidean_distances(X_umap)
-
-# calculate the Euclidean distance for each data point
-euclidean_dist = np.mean(euclidean_dist_matrix, axis=1)
-
-euclidean_dist = pd.Series(euclidean_dist, index=X.index)
-far_index = euclidean_dist.index[np.where(euclidean_dist >= np.quantile(euclidean_dist, 0.8))[0]]
-close_index = euclidean_dist.index[np.where(euclidean_dist < np.quantile(euclidean_dist, 0.8))[0]]
-
-X_train = X.loc[close_index,:]
-X_test = X.loc[far_index,:]
-y_train = y.loc[close_index]
-y_test = y.loc[far_index]
-
-# Apply UMAP decomposition on the training set
-X_umap_train = umap.fit_transform(X_train)
-
-# calculate the Euclidean distance matrix for the training set
-euclidean_dist_matrix_train = euclidean_distances(X_umap_train)
-
-# calculate the Euclidean distance for each data point in the training set
-euclidean_dist_train = np.mean(euclidean_dist_matrix_train, axis=1)
-
-euclidean_dist_train = pd.Series(euclidean_dist_train, index=X_train.index)
-far_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train >= np.quantile(euclidean_dist_train, 0.8))[0]]
-close_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train < np.quantile(euclidean_dist_train, 0.8))[0]]
-
-X_train_ = X_train.loc[close_index_train,:]
-X_val = X_train.loc[far_index_train,:]
-y_train_ = y_train.loc[close_index_train]
-y_val = y_train.loc[far_index_train]
+    # Set the random seed for reproducibility
+    N_TRIALS=100
+    N_SAMPLES=100
+    PATIENCE=40
+    N_EPOCHS=1000
+    GP_ITERATIONS=1000
+    BATCH_SIZE=1024
+    seed=10
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
 
 
-# Convert data to PyTorch tensors
-X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
-y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
-X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
-y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
-y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
-X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
-y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
+    # Apply UMAP decomposition
+    umap = UMAP(n_components=2, random_state=42)
+    X_umap = umap.fit_transform(X)
 
-# Convert to use GPU if available
-if torch.cuda.is_available():
-    X_train__tensor = X_train__tensor.cuda()
-    y_train__tensor = y_train__tensor.cuda()
-    X_train_tensor = X_train_tensor.cuda()
-    y_train_tensor = y_train_tensor.cuda()
-    X_val_tensor = X_val_tensor.cuda()
-    y_val_tensor = y_val_tensor.cuda()
-    X_test_tensor = X_test_tensor.cuda()
-    y_test_tensor = y_test_tensor.cuda()
+    # calculate the Euclidean distance matrix
+    euclidean_dist_matrix = euclidean_distances(X_umap)
 
-# Create flattened versions of the data
-y_val_np = y_val.values.flatten()
-y_test_np = y_test.values.flatten()
+    # calculate the Euclidean distance for each data point
+    euclidean_dist = np.mean(euclidean_dist_matrix, axis=1)
 
-# Create TensorDatasets for training and validation sets
-train__dataset = TensorDataset(X_train__tensor, y_train__tensor)
-train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
-test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
+    euclidean_dist = pd.Series(euclidean_dist, index=X.index)
+    far_index = euclidean_dist.index[np.where(euclidean_dist >= np.quantile(euclidean_dist, 0.8))[0]]
+    close_index = euclidean_dist.index[np.where(euclidean_dist < np.quantile(euclidean_dist, 0.8))[0]]
 
-# Create DataLoaders for training and validation sets
-train__loader = DataLoader(train__dataset, batch_size=BATCH_SIZE, shuffle=True)
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    X_train = X.loc[close_index,:]
+    X_test = X.loc[far_index,:]
+    y_train = y.loc[close_index]
+    y_test = y.loc[far_index]
 
-#### Gaussian process
-# Define the kernels
-kernels = [
-    gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
-    gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=X_train_.shape[1])),
-    gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=X_train_.shape[1])),
-    gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
-]
+    # Apply UMAP decomposition on the training set
+    X_umap_train = umap.fit_transform(X_train)
 
-best_crps = float('inf')
-best_kernel = None
+    # calculate the Euclidean distance matrix for the training set
+    euclidean_dist_matrix_train = euclidean_distances(X_umap_train)
+
+    # calculate the Euclidean distance for each data point in the training set
+    euclidean_dist_train = np.mean(euclidean_dist_matrix_train, axis=1)
+
+    euclidean_dist_train = pd.Series(euclidean_dist_train, index=X_train.index)
+    far_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train >= np.quantile(euclidean_dist_train, 0.8))[0]]
+    close_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train < np.quantile(euclidean_dist_train, 0.8))[0]]
+
+    X_train_ = X_train.loc[close_index_train,:]
+    X_val = X_train.loc[far_index_train,:]
+    y_train_ = y_train.loc[close_index_train]
+    y_val = y_train.loc[far_index_train]
 
 
-for kernel in kernels:
+    # Convert data to PyTorch tensors
+    X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
+    y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
+    y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
+    y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
+    y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
+
+    # Convert to use GPU if available
+    if torch.cuda.is_available():
+        X_train__tensor = X_train__tensor.cuda()
+        y_train__tensor = y_train__tensor.cuda()
+        X_train_tensor = X_train_tensor.cuda()
+        y_train_tensor = y_train_tensor.cuda()
+        X_val_tensor = X_val_tensor.cuda()
+        y_val_tensor = y_val_tensor.cuda()
+        X_test_tensor = X_test_tensor.cuda()
+        y_test_tensor = y_test_tensor.cuda()
+
+    # Create flattened versions of the data
+    y_val_np = y_val.values.flatten()
+    y_test_np = y_test.values.flatten()
+
+    # Create TensorDatasets for training and validation sets
+    train__dataset = TensorDataset(X_train__tensor, y_train__tensor)
+    train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+    val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
+    test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
+
+    # Create DataLoaders for training and validation sets
+    train__loader = DataLoader(train__dataset, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    #### Gaussian process
+    # Define the kernels
+    kernels = [
+        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
+        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=X_train_.shape[1])),
+        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=X_train_.shape[1])),
+        gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
+    ]
+
+    best_crps = float('inf')
+    best_kernel = None
+
+
+    for kernel in kernels:
+        # Initialize the Gaussian Process model and likelihood
+        likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
+
+        if torch.cuda.is_available():
+            model = model.cuda()
+
+        # Use the adam optimizer
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+        # "Loss" for GPs - the marginal log likelihood
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+
+        # Train the model
+        model.train()
+        likelihood.train()
+
+        train_GP(model,X_train__tensor,y_train__tensor,GP_ITERATIONS,mll,optimizer)
+        
+        # Set the model in evaluation mode
+        model.eval()
+        likelihood.eval()
+
+        # Make predictions on the validation set
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            y_pred = model(X_val_tensor)
+
+        # Calculate CRPS
+        y_pred_np = y_pred.mean.numpy().flatten()
+        y_pred_std_np = y_pred.stddev.numpy().flatten()
+
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_gaussian(y_val_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_val_np))]
+
+        # Calculate the mean CRPS
+        mean_crps = np.mean(crps_values)
+
+        # Update the best kernel if the current kernel has a lower CRPS
+        if mean_crps < best_crps:
+            best_crps = mean_crps
+            best_kernel = kernel
+
+
     # Initialize the Gaussian Process model and likelihood
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
-
-    if torch.cuda.is_available():
-        model = model.cuda()
+    model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, best_kernel)
 
     # Use the adam optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -165,586 +208,546 @@ for kernel in kernels:
     # "Loss" for GPs - the marginal log likelihood
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
 
+    if torch.cuda.is_available():
+        model = model.cuda()
+
     # Train the model
     model.train()
     likelihood.train()
+    train_GP(model,X_train_tensor,y_train_tensor,GP_ITERATIONS,mll,optimizer)
 
-    train_GP(model,X_train__tensor,y_train__tensor,GP_ITERATIONS,mll,optimizer)
-    
     # Set the model in evaluation mode
     model.eval()
     likelihood.eval()
 
     # Make predictions on the validation set
     with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        y_pred = model(X_val_tensor)
+        y_pred = model(X_test_tensor)
 
     # Calculate CRPS
     y_pred_np = y_pred.mean.numpy().flatten()
     y_pred_std_np = y_pred.stddev.numpy().flatten()
 
     # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_val_np))]
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_test_np))]
 
     # Calculate the mean CRPS
-    mean_crps = np.mean(crps_values)
+    CRPS_GP = np.mean(crps_values)
 
     # Update the best kernel if the current kernel has a lower CRPS
-    if mean_crps < best_crps:
-        best_crps = mean_crps
-        best_kernel = kernel
+    print('CRPS_GP: ', CRPS_GP)
 
 
-# Initialize the Gaussian Process model and likelihood
-likelihood = gpytorch.likelihoods.GaussianLikelihood()
-model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, best_kernel)
+    # #### MLP
+    d_out = 1  
+    d_in=X_train_.shape[1]
 
-# Use the adam optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    def MLP_opt(trial):
 
-# "Loss" for GPs - the marginal log likelihood
-mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
 
-if torch.cuda.is_available():
-    model = model.cuda()
+        n_blocks = trial.suggest_int("n_blocks", 1, 5)
+        d_block = trial.suggest_int("d_block", 10, 500)
+        dropout = trial.suggest_float("dropout", 0, 1)
 
-# Train the model
-model.train()
-likelihood.train()
-train_GP(model,X_train_tensor,y_train_tensor,GP_ITERATIONS,mll,optimizer)
+        MLP_model = MLP(
+        d_in=d_in,
+        d_out=d_out,
+        n_blocks=n_blocks,
+        d_block=d_block,
+        dropout=dropout,
+        )
+        n_epochs=N_EPOCHS
+        learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
+        weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+        optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        criterion = torch.nn.MSELoss()
 
-# Set the model in evaluation mode
-model.eval()
-likelihood.eval()
+        if torch.cuda.is_available():
+            MLP_model = MLP_model.cuda()
 
-# Make predictions on the validation set
-with torch.no_grad(), gpytorch.settings.fast_pred_var():
-    y_pred = model(X_test_tensor)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
+        n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
-# Calculate CRPS
-y_pred_np = y_pred.mean.numpy().flatten()
-y_pred_std_np = y_pred.stddev.numpy().flatten()
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = MLP_model(batch_X).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
 
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_test_np))]
+        y_val_hat_MLP = np.concatenate(predictions)
 
-# Calculate the mean CRPS
-CRPS_GP = np.mean(crps_values)
+        # Estimate standard deviation of the prediction error
+        std_dev_error = np.std(y_val - y_val_hat_MLP)
 
-# Update the best kernel if the current kernel has a lower CRPS
-print('CRPS_GP: ', CRPS_GP)
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_MLP[i], sig=std_dev_error) for i in range(len(y_val_hat_MLP))]
 
+        # Calculate the mean CRPS
+        mean_crps = np.mean(crps_values)
 
-# #### MLP
-d_out = 1  
-d_in=X_train_.shape[1]
+        return mean_crps
 
-def MLP_opt(trial):
-
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-
-    n_blocks = trial.suggest_int("n_blocks", 1, 5)
-    d_block = trial.suggest_int("d_block", 10, 500)
-    dropout = trial.suggest_float("dropout", 0, 1)
+    sampler_MLP = optuna.samplers.TPESampler(seed=seed)
+    study_MLP = optuna.create_study(sampler=sampler_MLP, direction='minimize')
+    study_MLP.optimize(MLP_opt, n_trials=N_TRIALS)
 
     MLP_model = MLP(
-    d_in=d_in,
-    d_out=d_out,
-    n_blocks=n_blocks,
-    d_block=d_block,
-    dropout=dropout,
-    )
-    n_epochs=N_EPOCHS
-    learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
-    weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
-    optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    criterion = torch.nn.MSELoss()
+        d_in=d_in,
+        d_out=d_out,
+        n_blocks=study_MLP.best_params['n_blocks'],
+        d_block=study_MLP.best_params['d_block'],
+        dropout=study_MLP.best_params['dropout'],
+        )
 
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
+        
+    n_epochs=study_MLP.best_params['n_epochs']
+    learning_rate=study_MLP.best_params['learning_rate']
+    weight_decay=study_MLP.best_params['weight_decay']
+    optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    criterion = torch.nn.MSELoss()
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
-    n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
     predictions = []
     with torch.no_grad():
-        for batch_X, _ in val_loader:
+        for batch_X, _ in test_loader:
             batch_predictions = MLP_model(batch_X).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
-    y_val_hat_MLP = np.concatenate(predictions)
+    y_test_hat_MLP = np.concatenate(predictions)
 
     # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_val - y_val_hat_MLP)
+    std_dev_error = np.std(y_test - y_test_hat_MLP)
+
+    # Create a normal distribution for each prediction
+    pred_distributions = [norm(loc=y_test_hat_MLP[i], scale=std_dev_error) for i in range(len(y_test_hat_MLP))]
 
     # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_MLP[i], sig=std_dev_error) for i in range(len(y_val_hat_MLP))]
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_MLP[i], sig=std_dev_error) for i in range(len(y_test_hat_MLP))]
 
     # Calculate the mean CRPS
-    mean_crps = np.mean(crps_values)
+    crps_MLP = np.mean(crps_values)
 
-    return mean_crps
+    print("CRPS MLP: ", crps_MLP)
 
-sampler_MLP = optuna.samplers.TPESampler(seed=seed)
-study_MLP = optuna.create_study(sampler=sampler_MLP, direction='minimize')
-study_MLP.optimize(MLP_opt, n_trials=N_TRIALS)
+    # #### ResNet
+    d_out = 1  
+    d_in=X_train_.shape[1]
 
-MLP_model = MLP(
-    d_in=d_in,
-    d_out=d_out,
-    n_blocks=study_MLP.best_params['n_blocks'],
-    d_block=study_MLP.best_params['d_block'],
-    dropout=study_MLP.best_params['dropout'],
-    )
+    def ResNet_opt(trial):
 
-if torch.cuda.is_available():
-    MLP_model = MLP_model.cuda()
-    
-n_epochs=study_MLP.best_params['n_epochs']
-learning_rate=study_MLP.best_params['learning_rate']
-weight_decay=study_MLP.best_params['weight_decay']
-optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.MSELoss()
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
 
-train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
+        n_blocks = trial.suggest_int("n_blocks", 1, 5)
+        d_block = trial.suggest_int("d_block", 10, 500)
+        dropout1 = trial.suggest_float("dropout1", 0, 1)
+        dropout2 = trial.suggest_float("dropout2", 0, 1)
+        d_hidden_multiplier=trial.suggest_float("d_hidden_multiplier", 0.5, 3)
 
-# Point prediction
-predictions = []
-with torch.no_grad():
-    for batch_X, _ in test_loader:
-        batch_predictions = MLP_model(batch_X).reshape(-1,)
-        predictions.append(batch_predictions.cpu().numpy())
+        ResNet_model = ResNet(
+        d_in=d_in,
+        d_out=d_out,
+        n_blocks=n_blocks,
+        d_block=d_block,
+        d_hidden=None,
+        d_hidden_multiplier=d_hidden_multiplier,
+        dropout1=dropout1,
+        dropout2=dropout2,
+        )
+        if torch.cuda.is_available():
+            ResNet_model = ResNet_model.cuda()
+        n_epochs=N_EPOCHS
+        learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
+        weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+        optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        criterion = torch.nn.MSELoss()
 
-y_test_hat_MLP = np.concatenate(predictions)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train(ResNet_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
+        n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
-# Estimate standard deviation of the prediction error
-std_dev_error = np.std(y_test - y_test_hat_MLP)
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = ResNet_model(batch_X).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
 
-# Create a normal distribution for each prediction
-pred_distributions = [norm(loc=y_test_hat_MLP[i], scale=std_dev_error) for i in range(len(y_test_hat_MLP))]
+        y_val_hat_ResNet = np.concatenate(predictions)
 
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_MLP[i], sig=std_dev_error) for i in range(len(y_test_hat_MLP))]
+        # Estimate standard deviation of the prediction error
+        std_dev_error = np.std(y_val - y_val_hat_ResNet)
 
-# Calculate the mean CRPS
-crps_MLP = np.mean(crps_values)
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_ResNet[i], sig=std_dev_error) for i in range(len(y_val_hat_ResNet))]
 
-print("CRPS MLP: ", crps_MLP)
+        # Calculate the mean CRPS
+        crps_ResNet = np.mean(crps_values)
 
-# #### ResNet
-d_out = 1  
-d_in=X_train_.shape[1]
+        return crps_ResNet
 
-def ResNet_opt(trial):
-
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-
-    n_blocks = trial.suggest_int("n_blocks", 1, 5)
-    d_block = trial.suggest_int("d_block", 10, 500)
-    dropout1 = trial.suggest_float("dropout1", 0, 1)
-    dropout2 = trial.suggest_float("dropout2", 0, 1)
-    d_hidden_multiplier=trial.suggest_float("d_hidden_multiplier", 0.5, 3)
+    sampler_ResNet = optuna.samplers.TPESampler(seed=seed)
+    study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='minimize')
+    study_ResNet.optimize(ResNet_opt, n_trials=N_TRIALS)
 
     ResNet_model = ResNet(
-    d_in=d_in,
-    d_out=d_out,
-    n_blocks=n_blocks,
-    d_block=d_block,
-    d_hidden=None,
-    d_hidden_multiplier=d_hidden_multiplier,
-    dropout1=dropout1,
-    dropout2=dropout2,
-    )
+        d_in=d_in,
+        d_out=d_out,
+        n_blocks=study_ResNet.best_params['n_blocks'],
+        d_block=study_ResNet.best_params['d_block'],
+        d_hidden=None,
+        d_hidden_multiplier=study_ResNet.best_params['d_hidden_multiplier'],
+        dropout1=study_ResNet.best_params['dropout1'],
+        dropout2=study_ResNet.best_params['dropout2'],
+        )
+
     if torch.cuda.is_available():
         ResNet_model = ResNet_model.cuda()
-    n_epochs=N_EPOCHS
-    learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
-    weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+
+    n_epochs=study_ResNet.best_params['n_epochs']
+    learning_rate=study_ResNet.best_params['learning_rate']
+    weight_decay=study_ResNet.best_params['weight_decay']
     optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
-    n_epochs=train(ResNet_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
     predictions = []
     with torch.no_grad():
-        for batch_X, _ in val_loader:
+        for batch_X, _ in test_loader:
             batch_predictions = ResNet_model(batch_X).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
-    y_val_hat_ResNet = np.concatenate(predictions)
+    y_test_hat_ResNet = np.concatenate(predictions)
 
     # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_val - y_val_hat_ResNet)
+    std_dev_error = np.std(y_test - y_test_hat_ResNet)
 
     # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_ResNet[i], sig=std_dev_error) for i in range(len(y_val_hat_ResNet))]
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_ResNet[i], sig=std_dev_error) for i in range(len(y_test_hat_ResNet))]
 
     # Calculate the mean CRPS
     crps_ResNet = np.mean(crps_values)
 
-    return crps_ResNet
+    print("CRPS ResNet: ", crps_ResNet)
+    # #### FFTransformer
 
-sampler_ResNet = optuna.samplers.TPESampler(seed=seed)
-study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='minimize')
-study_ResNet.optimize(ResNet_opt, n_trials=N_TRIALS)
+    d_out = 1  
+    d_in=X_train_.shape[1]
 
-ResNet_model = ResNet(
-    d_in=d_in,
-    d_out=d_out,
-    n_blocks=study_ResNet.best_params['n_blocks'],
-    d_block=study_ResNet.best_params['d_block'],
-    d_hidden=None,
-    d_hidden_multiplier=study_ResNet.best_params['d_hidden_multiplier'],
-    dropout1=study_ResNet.best_params['dropout1'],
-    dropout2=study_ResNet.best_params['dropout2'],
-    )
+    def FTTrans_opt(trial):
 
-if torch.cuda.is_available():
-    ResNet_model = ResNet_model.cuda()
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
 
-n_epochs=study_ResNet.best_params['n_epochs']
-learning_rate=study_ResNet.best_params['learning_rate']
-weight_decay=study_ResNet.best_params['weight_decay']
-optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.MSELoss()
+        n_blocks = trial.suggest_int("n_blocks", 1, 5)
+        d_block_multiplier = trial.suggest_int("d_block_multiplier", 1, 25)
+        attention_n_heads = trial.suggest_int("attention_n_heads", 1, 20)
+        attention_dropout = trial.suggest_float("attention_dropout", 0, 1)
+        ffn_d_hidden_multiplier=trial.suggest_float("ffn_d_hidden_multiplier", 0.5, 3)
+        ffn_dropout = trial.suggest_float("ffn_dropout", 0, 1)
+        residual_dropout = trial.suggest_float("residual_dropout", 0, 1)
 
-train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader)
+        FTTrans_model = FTTransformer(
+        n_cont_features=d_in,
+        cat_cardinalities=[],
+        d_out=d_out,
+        n_blocks=n_blocks,
+        d_block=d_block_multiplier*attention_n_heads,
+        attention_n_heads=attention_n_heads,
+        attention_dropout=attention_dropout,
+        ffn_d_hidden=None,
+        ffn_d_hidden_multiplier=ffn_d_hidden_multiplier,
+        ffn_dropout=ffn_dropout,
+        residual_dropout=residual_dropout,
+        )
 
-# Point prediction
-predictions = []
-with torch.no_grad():
-    for batch_X, _ in test_loader:
-        batch_predictions = ResNet_model(batch_X).reshape(-1,)
-        predictions.append(batch_predictions.cpu().numpy())
+        if torch.cuda.is_available():
+            FTTrans_model = FTTrans_model.cuda()
 
-y_test_hat_ResNet = np.concatenate(predictions)
+        n_epochs=N_EPOCHS
+        learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
+        weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+        optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        criterion = torch.nn.MSELoss()
 
-# Estimate standard deviation of the prediction error
-std_dev_error = np.std(y_test - y_test_hat_ResNet)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
+        n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_ResNet[i], sig=std_dev_error) for i in range(len(y_test_hat_ResNet))]
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
 
-# Calculate the mean CRPS
-crps_ResNet = np.mean(crps_values)
+        y_val_hat_FTTrans = np.concatenate(predictions)
 
-print("CRPS ResNet: ", crps_ResNet)
-# #### FFTransformer
+        # Estimate standard deviation of the prediction error
+        std_dev_error = np.std(y_val - y_val_hat_FTTrans)
 
-d_out = 1  
-d_in=X_train_.shape[1]
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_val_hat_FTTrans))]
 
-def FTTrans_opt(trial):
+        # Calculate the mean CRPS
+        crps_FTTrans= np.mean(crps_values)
 
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
+        return crps_FTTrans
 
-    n_blocks = trial.suggest_int("n_blocks", 1, 5)
-    d_block_multiplier = trial.suggest_int("d_block_multiplier", 1, 25)
-    attention_n_heads = trial.suggest_int("attention_n_heads", 1, 20)
-    attention_dropout = trial.suggest_float("attention_dropout", 0, 1)
-    ffn_d_hidden_multiplier=trial.suggest_float("ffn_d_hidden_multiplier", 0.5, 3)
-    ffn_dropout = trial.suggest_float("ffn_dropout", 0, 1)
-    residual_dropout = trial.suggest_float("residual_dropout", 0, 1)
+    sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
+    study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='minimize')
+    study_FTTrans.optimize(FTTrans_opt, n_trials=N_TRIALS)
+
 
     FTTrans_model = FTTransformer(
-    n_cont_features=d_in,
-    cat_cardinalities=[],
-    d_out=d_out,
-    n_blocks=n_blocks,
-    d_block=d_block_multiplier*attention_n_heads,
-    attention_n_heads=attention_n_heads,
-    attention_dropout=attention_dropout,
-    ffn_d_hidden=None,
-    ffn_d_hidden_multiplier=ffn_d_hidden_multiplier,
-    ffn_dropout=ffn_dropout,
-    residual_dropout=residual_dropout,
-    )
+        n_cont_features=d_in,
+        cat_cardinalities=[],
+        d_out=d_out,
+        n_blocks=study_FTTrans.best_params['n_blocks'],
+        d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
+        attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
+        attention_dropout=study_FTTrans.best_params['attention_dropout'],
+        ffn_d_hidden=None,
+        ffn_d_hidden_multiplier=study_FTTrans.best_params['ffn_d_hidden_multiplier'],
+        ffn_dropout=study_FTTrans.best_params['ffn_dropout'],
+        residual_dropout=study_FTTrans.best_params['residual_dropout'],
+        )
 
     if torch.cuda.is_available():
         FTTrans_model = FTTrans_model.cuda()
 
-    n_epochs=N_EPOCHS
-    learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
-    weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+    n_epochs=study_FTTrans.best_params['n_epochs'] 
+    learning_rate=study_FTTrans.best_params['learning_rate']
+    weight_decay=study_FTTrans.best_params['weight_decay']
     optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
-    n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
     predictions = []
     with torch.no_grad():
-        for batch_X, _ in val_loader:
+        for batch_X, _ in test_loader:
             batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
-    y_val_hat_FTTrans = np.concatenate(predictions)
+    y_test_hat_FTTrans = np.concatenate(predictions)
 
     # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_val - y_val_hat_FTTrans)
+    std_dev_error = np.std(y_test - y_test_hat_FTTrans)
 
     # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_val_hat_FTTrans))]
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_test_hat_FTTrans))]
 
     # Calculate the mean CRPS
     crps_FTTrans= np.mean(crps_values)
 
-    return crps_FTTrans
+    print("CRPS FTTrans: ", crps_FTTrans)
 
-sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
-study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='minimize')
-study_FTTrans.optimize(FTTrans_opt, n_trials=N_TRIALS)
+    # #### Boosted trees, random forest, engression, linear regression
+    # Create lgb dataset
+    dtrain_ = lgb.Dataset(torch.tensor(X_train_.values, dtype=torch.float32).clone().detach(), label=y_train_.values)
+
+    def boosted(trial):
+
+        params = {
+            'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.5, log=True),
+            'n_estimators': trial.suggest_int('n_estimators', 100, 500),
+            'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
+            'max_depth': trial.suggest_int('max_depth', 1, 30),
+            'min_child_samples': trial.suggest_int('min_child_samples', 10, 100),
+        }
+        opt_params = params.copy()
+        n_rounds = opt_params["n_estimators"]
+        del opt_params["n_estimators"]
+        opt_params['feature_pre_filter']=False
+
+        # Use LightGBMLossGuideRegressor for distributional prediction
+        boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="nll"))
+        boosted_tree_model.train(opt_params, dtrain_, num_boost_round=n_rounds)
+
+        # Predict both the mean and standard deviation
+        pred_params=boosted_tree_model.predict(X_val, pred_type="parameters")
+        y_val_hat_boost=pred_params['loc']
+        y_val_hat_std = pred_params['scale']
+
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_boost[i], sig=y_val_hat_std[i]) for i in range(len(y_val))]
+
+        # Return the mean CRPS as the objective to be minimized
+        return np.mean(crps_values)
+
+    sampler_boost = optuna.samplers.TPESampler(seed=seed)
+    study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
+    study_boost.optimize(boosted, n_trials=N_TRIALS)
+
+    def rf(trial):
+        params = {'num_trees': trial.suggest_int('num_trees', 100, 500),
+            'mtry': trial.suggest_int('mtry', 1, 30),
+            'min_node_size': trial.suggest_int('min_node_size', 10, 100)}
+        
+        drf_model = drf(**params)
+        drf_model.fit(X_train_, y_train_)
+        
+        # Generate a sample from the drf model for each data point
+        y_val_hat=drf_model.predict(newdata = X_val, functional = "quantile", quantiles=list(np.random.uniform(0,1,N_SAMPLES)))
+
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_ensemble(y_val_np[i], y_val_hat.quantile[i].reshape(-1)) for i in range(len(y_val_np))]
+
+        # Return the mean CRPS as the objective to be minimized
+        return np.mean(crps_values)
+
+    sampler_drf = optuna.samplers.TPESampler(seed=seed)
+    study_drf = optuna.create_study(sampler=sampler_drf, direction='minimize')
+    study_drf.optimize(rf, n_trials=N_TRIALS)
 
 
-FTTrans_model = FTTransformer(
-    n_cont_features=d_in,
-    cat_cardinalities=[],
-    d_out=d_out,
-    n_blocks=study_FTTrans.best_params['n_blocks'],
-    d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
-    attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
-    attention_dropout=study_FTTrans.best_params['attention_dropout'],
-    ffn_d_hidden=None,
-    ffn_d_hidden_multiplier=study_FTTrans.best_params['ffn_d_hidden_multiplier'],
-    ffn_dropout=study_FTTrans.best_params['ffn_dropout'],
-    residual_dropout=study_FTTrans.best_params['residual_dropout'],
-    )
+    def engressor_NN(trial):
 
-if torch.cuda.is_available():
-    FTTrans_model = FTTrans_model.cuda()
+        params = {'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.01, log=True),
+                'num_epoches': trial.suggest_int('num_epoches', 100, 1000),
+                'num_layer': trial.suggest_int('num_layer', 2, 5),
+                'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),
+                'resblock': trial.suggest_categorical('resblock', [True, False])}
+        params['noise_dim']=params['hidden_dim']
 
-n_epochs=study_FTTrans.best_params['n_epochs'] 
-learning_rate=study_FTTrans.best_params['learning_rate']
-weight_decay=study_FTTrans.best_params['weight_decay']
-optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.MSELoss()
+        # Check if CUDA is available and if so, move the tensors and the model to the GPU
+        if torch.cuda.is_available():
+            engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'], device="cuda")
+        else:
+            engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'])
+        
+        # Generate a sample from the engression model for each data point
+        y_val_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_val.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_val))]
 
-train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_ensemble(y_val_np[i], np.array(y_val_hat_engression_samples[i]).reshape(-1,)) for i in range(len(y_val_np))]
 
-# Point prediction
-predictions = []
-with torch.no_grad():
-    for batch_X, _ in test_loader:
-        batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
-        predictions.append(batch_predictions.cpu().numpy())
+        return np.mean(crps_values)
 
-y_test_hat_FTTrans = np.concatenate(predictions)
+    sampler_engression = optuna.samplers.TPESampler(seed=seed)
+    study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')
+    study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
 
-# Estimate standard deviation of the prediction error
-std_dev_error = np.std(y_test - y_test_hat_FTTrans)
 
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_test_hat_FTTrans))]
-
-# Calculate the mean CRPS
-crps_FTTrans= np.mean(crps_values)
-
-print("CRPS FTTrans: ", crps_FTTrans)
-
-# #### Boosted trees, random forest, engression, linear regression
-# Create lgb dataset
-dtrain_ = lgb.Dataset(torch.tensor(X_train_.values, dtype=torch.float32).clone().detach(), label=y_train_.values)
-
-def boosted(trial):
-
-    params = {
-        'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.5, log=True),
-        'n_estimators': trial.suggest_int('n_estimators', 100, 500),
-        'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
-        'max_depth': trial.suggest_int('max_depth', 1, 30),
-        'min_child_samples': trial.suggest_int('min_child_samples', 10, 100),
-    }
-    opt_params = params.copy()
+    dtrain = lgb.Dataset(torch.tensor(X_train.values, dtype=torch.float32).clone().detach(), label=y_train.values)
+    opt_params = study_boost.best_params.copy()
     n_rounds = opt_params["n_estimators"]
     del opt_params["n_estimators"]
     opt_params['feature_pre_filter']=False
-
     # Use LightGBMLossGuideRegressor for distributional prediction
     boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="nll"))
-    boosted_tree_model.train(opt_params, dtrain_, num_boost_round=n_rounds)
-
+    boosted_tree_model.train(opt_params, dtrain, num_boost_round=n_rounds)
     # Predict both the mean and standard deviation
-    pred_params=boosted_tree_model.predict(X_val, pred_type="parameters")
-    y_val_hat_boost=pred_params['loc']
-    y_val_hat_std = pred_params['scale']
-
+    pred_params=boosted_tree_model.predict(X_test, pred_type="parameters")
+    y_test_hat_boost=pred_params['loc']
+    y_test_hat_std = pred_params['scale']
     # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_boost[i], sig=y_val_hat_std[i]) for i in range(len(y_val))]
-
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_boost[i], sig=y_test_hat_std[i]) for i in range(len(y_test))]
     # Return the mean CRPS as the objective to be minimized
-    return np.mean(crps_values)
+    CRPS_boosted=np.mean(crps_values)
 
-sampler_boost = optuna.samplers.TPESampler(seed=seed)
-study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
-study_boost.optimize(boosted, n_trials=N_TRIALS)
-
-def rf(trial):
-    params = {'num_trees': trial.suggest_int('num_trees', 100, 500),
-          'mtry': trial.suggest_int('mtry', 1, 30),
-          'min_node_size': trial.suggest_int('min_node_size', 10, 100)}
-    
-    drf_model = drf(**params)
-    drf_model.fit(X_train_, y_train_)
-    
+    drf_model=drf(**study_drf.best_params)
+    drf_model.fit(X_train, y_train)
     # Generate a sample from the drf model for each data point
-    y_val_hat=drf_model.predict(newdata = X_val, functional = "quantile", quantiles=list(np.random.uniform(0,1,N_SAMPLES)))
-
+    y_test_hat_drf=drf_model.predict(newdata = X_test, functional = "quantile", quantiles=list(np.random.uniform(0,1,N_SAMPLES)))
     # Calculate the CRPS for each prediction
-    crps_values = [crps_ensemble(y_val_np[i], y_val_hat.quantile[i].reshape(-1)) for i in range(len(y_val_np))]
-
+    crps_values = [crps_ensemble(y_test_np[i], y_test_hat_drf.quantile[i].reshape(-1)) for i in range(len(y_test_np))]
     # Return the mean CRPS as the objective to be minimized
-    return np.mean(crps_values)
+    CRPS_rf=np.mean(crps_values)
 
-sampler_drf = optuna.samplers.TPESampler(seed=seed)
-study_drf = optuna.create_study(sampler=sampler_drf, direction='minimize')
-study_drf.optimize(rf, n_trials=N_TRIALS)
+    lin_reg=LinearRegression()
+    lin_reg.fit(X_train, y_train)
+    y_test_hat_linreg=lin_reg.predict(X_test)
+    # Calculate the standard deviation of the residuals
+    std_dev = np.std(y_test - y_test_hat_linreg)
+    # Calculate the CRPS for each prediction
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_linreg[i], sig=std_dev) for i in range(len(y_test_np))]
+    CRPS_linreg = np.mean(crps_values)
 
-
-def engressor_NN(trial):
-
-    params = {'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.01, log=True),
-              'num_epoches': trial.suggest_int('num_epoches', 100, 1000),
-              'num_layer': trial.suggest_int('num_layer', 2, 5),
-              'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),
-              'resblock': trial.suggest_categorical('resblock', [True, False])}
+    params=study_engression.best_params
     params['noise_dim']=params['hidden_dim']
+    X_train_tensor = torch.Tensor(np.array(X_train))
+    y_train_tensor = torch.Tensor(np.array(y_train).reshape(-1,1))
 
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
     if torch.cuda.is_available():
-        engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'], device="cuda")
+        engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'], device="cuda")
     else:
-        engressor_model=engression(X_train__tensor, y_train__tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'])
-    
+        engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'])
     # Generate a sample from the engression model for each data point
-    y_val_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_val.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_val))]
-
+    y_test_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_test.values[i]])).cuda() if torch.cuda.is_available() else torch.Tensor(np.array([X_test.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_test))]
     # Calculate the CRPS for each prediction
-    crps_values = [crps_ensemble(y_val_np[i], np.array(y_val_hat_engression_samples[i]).reshape(-1,)) for i in range(len(y_val_np))]
+    crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i]).reshape(-1,)) for i in range(len(y_test_np))]
+    CRPS_engression=np.mean(crps_values)
 
-    return np.mean(crps_values)
+    print("CRPS linear regression: ",CRPS_linreg)
+    print("CRPS boosted trees", CRPS_boosted)
+    print("CRPS random forest", CRPS_rf)
+    print("CRPS engression", CRPS_engression)
 
-sampler_engression = optuna.samplers.TPESampler(seed=seed)
-study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')
-study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
+    #### GAM model
+    def gam_model(trial):
 
+        # Define the hyperparameters to optimize
+        params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
+                'lam': trial.suggest_loguniform('lam', 1e-3, 1)}
 
-dtrain = lgb.Dataset(torch.tensor(X_train.values, dtype=torch.float32).clone().detach(), label=y_train.values)
-opt_params = study_boost.best_params.copy()
-n_rounds = opt_params["n_estimators"]
-del opt_params["n_estimators"]
-opt_params['feature_pre_filter']=False
-# Use LightGBMLossGuideRegressor for distributional prediction
-boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="nll"))
-boosted_tree_model.train(opt_params, dtrain, num_boost_round=n_rounds)
-# Predict both the mean and standard deviation
-pred_params=boosted_tree_model.predict(X_test, pred_type="parameters")
-y_test_hat_boost=pred_params['loc']
-y_test_hat_std = pred_params['scale']
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_boost[i], sig=y_test_hat_std[i]) for i in range(len(y_test))]
-# Return the mean CRPS as the objective to be minimized
-CRPS_boosted=np.mean(crps_values)
+        # Create and train the model
+        gam = LinearGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
 
-drf_model=drf(**study_drf.best_params)
-drf_model.fit(X_train, y_train)
-# Generate a sample from the drf model for each data point
-y_test_hat_drf=drf_model.predict(newdata = X_test, functional = "quantile", quantiles=list(np.random.uniform(0,1,N_SAMPLES)))
-# Calculate the CRPS for each prediction
-crps_values = [crps_ensemble(y_test_np[i], y_test_hat_drf.quantile[i].reshape(-1)) for i in range(len(y_test_np))]
-# Return the mean CRPS as the objective to be minimized
-CRPS_rf=np.mean(crps_values)
+        # Predict on the validation set and calculate the CRPS
+        y_val_hat_gam = gam.predict(X_val)
+        std_dev_error = np.std(y_val - y_val_hat_gam)
+        crps_gam = [crps_gaussian(y_val_np[i], mu=y_val_hat_gam[i], sig=std_dev_error) for i in range(len(y_val_hat_gam))]
+        crps_gam = np.mean(crps_gam)
 
-lin_reg=LinearRegression()
-lin_reg.fit(X_train, y_train)
-y_test_hat_linreg=lin_reg.predict(X_test)
-# Calculate the standard deviation of the residuals
-std_dev = np.std(y_test - y_test_hat_linreg)
-# Calculate the CRPS for each prediction
-crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_linreg[i], sig=std_dev) for i in range(len(y_test_np))]
-CRPS_linreg = np.mean(crps_values)
+        return crps_gam
 
-params=study_engression.best_params
-params['noise_dim']=params['hidden_dim']
-X_train_tensor = torch.Tensor(np.array(X_train))
-y_train_tensor = torch.Tensor(np.array(y_train).reshape(-1,1))
+    # Create the sampler and study
+    sampler_gam = optuna.samplers.TPESampler(seed=seed)
+    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
 
-# Check if CUDA is available and if so, move the tensors and the model to the GPU
-if torch.cuda.is_available():
-    engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'], device="cuda")
-else:
-    engressor_model=engression(X_train_tensor, y_train_tensor, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'])
-# Generate a sample from the engression model for each data point
-y_test_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_test.values[i]])).cuda() if torch.cuda.is_available() else torch.Tensor(np.array([X_test.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_test))]
-# Calculate the CRPS for each prediction
-crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i]).reshape(-1,)) for i in range(len(y_test_np))]
-CRPS_engression=np.mean(crps_values)
+    # Optimize the model
+    study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
-print("CRPS linear regression: ",CRPS_linreg)
-print("CRPS boosted trees", CRPS_boosted)
-print("CRPS random forest", CRPS_rf)
-print("CRPS engression", CRPS_engression)
+    # Create the final model with the best parameters
+    best_params = study_gam.best_params
+    final_gam_model = LinearGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
 
-#### GAM model
-def gam_model(trial):
+    # Fit the model
+    final_gam_model.fit(X_train, y_train)
 
-    # Define the hyperparameters to optimize
-    params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
-              'lam': trial.suggest_loguniform('lam', 1e-3, 1)}
+    # Predict on the test set
+    y_test_hat_gam = final_gam_model.predict(X_test)
 
-    # Create and train the model
-    gam = LinearGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
-
-    # Predict on the validation set and calculate the CRPS
-    y_val_hat_gam = gam.predict(X_val)
-    std_dev_error = np.std(y_val - y_val_hat_gam)
-    crps_gam = [crps_gaussian(y_val_np[i], mu=y_val_hat_gam[i], sig=std_dev_error) for i in range(len(y_val_hat_gam))]
+    # Calculate the CRPS
+    std_dev_error = np.std(y_test - y_test_hat_gam)
+    crps_gam = [crps_gaussian(y_test_np[i], mu=y_test_hat_gam[i], sig=std_dev_error) for i in range(len(y_test_hat_gam))]
     crps_gam = np.mean(crps_gam)
+    print("CRPS GAM: ", crps_gam)
 
-    return crps_gam
+    crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'boosted_trees': CRPS_boosted, 'drf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression, 'GAM': crps_gam}  # Add all your methods here
 
-# Create the sampler and study
-sampler_gam = optuna.samplers.TPESampler(seed=seed)
-study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
+    # Convert the dictionary to a DataFrame
+    df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
 
-# Optimize the model
-study_gam.optimize(gam_model, n_trials=N_TRIALS)
+    # Create the directory if it doesn't exist
+    os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
 
-# Create the final model with the best parameters
-best_params = study_gam.best_params
-final_gam_model = LinearGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
-
-# Fit the model
-final_gam_model.fit(X_train, y_train)
-
-# Predict on the test set
-y_test_hat_gam = final_gam_model.predict(X_test)
-
-# Calculate the CRPS
-std_dev_error = np.std(y_test - y_test_hat_gam)
-crps_gam = [crps_gaussian(y_test_np[i], mu=y_test_hat_gam[i], sig=std_dev_error) for i in range(len(y_test_hat_gam))]
-crps_gam = np.mean(crps_gam)
-print("CRPS GAM: ", crps_gam)
-
-crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'boosted_trees': CRPS_boosted, 'drf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression, 'GAM': crps_gam}  # Add all your methods here
-
-# Convert the dictionary to a DataFrame
-df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
-
-# Create the directory if it doesn't exist
-os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
-
-# Save the DataFrame to a CSV file
-df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_crps_results.csv', index=False)
+    # Save the DataFrame to a CSV file
+    df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_crps_results.csv', index=False)
