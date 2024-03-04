@@ -85,7 +85,7 @@ ddalpha = importr('ddalpha')
 spatialDepth = robjects.r['depth.spatial']
 
 # calculate the spatial depth for each data point
-spatial_depth = spatialDepth(X, X, seed=seed)
+spatial_depth = spatialDepth(X, X)
 
 spatial_depth=pd.Series(spatial_depth,index=X.index)
 far_index=spatial_depth.index[np.where(spatial_depth<=np.quantile(spatial_depth,0.2))[0]]
@@ -97,7 +97,7 @@ y_train = y.loc[close_index]
 y_test = y.loc[far_index]
 
 # convert the R vector to a pandas Series
-spatial_depth_ = spatialDepth(X_train, X_train, seed=seed)
+spatial_depth_ = spatialDepth(X_train, X_train)
 
 spatial_depth_=pd.Series(spatial_depth_,index=X_train.index)
 far_index_=spatial_depth_.index[np.where(spatial_depth_<=np.quantile(spatial_depth_,0.2))[0]]
