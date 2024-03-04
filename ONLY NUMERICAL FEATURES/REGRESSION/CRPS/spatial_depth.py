@@ -595,16 +595,18 @@ for task_id in benchmark_suite.tasks:
     study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
     study_boost.optimize(boosted, n_trials=N_TRIALS)
 
+    np.random.seed(seed)
+    quantiles=list(np.random.uniform(0,1,N_SAMPLES))
     def rf(trial):
         params = {'num_trees': trial.suggest_int('num_trees', 100, 500),
             'mtry': trial.suggest_int('mtry', 1, 30),
             'min_node_size': trial.suggest_int('min_node_size', 10, 100)}
         
-        drf_model = drf(**params)
+        drf_model = drf(**params, seed=seed)
         drf_model.fit(X_train_, y_train_)
         
         # Generate a sample from the drf model for each data point
-        y_val_hat=drf_model.predict(newdata = X_val, functional = "quantile", quantiles=list(np.random.uniform(0,1,N_SAMPLES)))
+        y_val_hat=drf_model.predict(newdata = X_val, functional = "quantile", quantiles=quantiles)
 
         # Calculate the CRPS for each prediction
         crps_values = [crps_ensemble(y_val_np[i], y_val_hat.quantile[i].reshape(-1)) for i in range(len(y_val_np))]
@@ -662,10 +664,10 @@ for task_id in benchmark_suite.tasks:
     # Return the mean CRPS as the objective to be minimized
     CRPS_boosted=np.mean(crps_values)
 
-    drf_model=drf(**study_drf.best_params)
+    drf_model=drf(**study_drf.best_params, seed=seed)
     drf_model.fit(X_train, y_train)
     # Generate a sample from the drf model for each data point
-    y_test_hat_drf=drf_model.predict(newdata = X_test, functional = "quantile", quantiles=list(np.random.uniform(0,1,N_SAMPLES)))
+    y_test_hat_drf=drf_model.predict(newdata = X_test, functional = "quantile", quantiles=quantiles)
     # Calculate the CRPS for each prediction
     crps_values = [crps_ensemble(y_test_np[i], y_test_hat_drf.quantile[i].reshape(-1)) for i in range(len(y_test_np))]
     # Return the mean CRPS as the objective to be minimized
@@ -689,7 +691,7 @@ for task_id in benchmark_suite.tasks:
     if torch.cuda.is_available():
         engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'], device="cuda")
     else:
-        engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1)ss, lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'])
+        engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, resblock=params['resblock'])
     # Generate a sample from the engression model for each data point
     y_test_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_test.values[i]])).cuda() if torch.cuda.is_available() else torch.Tensor(np.array([X_test.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_test))]
     # Calculate the CRPS for each prediction
