@@ -743,7 +743,7 @@ for task_id in benchmark_suite.tasks:
     crps_gam = np.mean(crps_gam)
     print("CRPS GAM: ", crps_gam)
 
-    crps_results = {'GP': CRPS_GP, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'boosted_trees': CRPS_boosted, 'drf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression, 'GAM': crps_gam}  # Add all your methods here
+    crps_results = {'GP': CRPS_GP.item(), 'MLP': crps_MLP.item(), 'ResNet': crps_ResNet.item(), 'FTTrans': crps_FTTrans.item(), 'boosted_trees': CRPS_boosted, 'drf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression.item(), 'GAM': crps_gam}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
