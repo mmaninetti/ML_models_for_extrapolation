@@ -637,9 +637,9 @@ for task_id in benchmark_suite.tasks:
         y_val_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_val.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_val))]
 
         # Calculate the CRPS for each prediction
-        crps_values = [crps_ensemble(y_val_np[i], np.array(y_val_hat_engression_samples[i]).reshape(-1,)) for i in range(len(y_val_np))]
+        crps_values = [crps_ensemble(y_val_np[i], np.array(y_val_hat_engression_samples[i].cpu()).reshape(-1,)) for i in range(len(y_val_np))]
 
-        return np.mean(crps_values.cpu())
+        return np.mean(crps_values)
 
     sampler_engression = optuna.samplers.TPESampler(seed=seed)
     study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')
@@ -694,19 +694,20 @@ for task_id in benchmark_suite.tasks:
     # Generate a sample from the engression model for each data point
     y_test_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_test.values[i]])).cuda() if torch.cuda.is_available() else torch.Tensor(np.array([X_test.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_test))]
     # Calculate the CRPS for each prediction
-    crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i]).reshape(-1,)) for i in range(len(y_test_np))]
-    CRPS_engression=np.mean(crps_values.cpu())
+    crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i].cpu()).reshape(-1,)) for i in range(len(y_test_np))]
+    CRPS_engression=np.mean(crps_values)
 
     print("CRPS linear regression: ",CRPS_linreg)
     print("CRPS boosted trees", CRPS_boosted)
     print("CRPS random forest", CRPS_rf)
     print("CRPS engression", CRPS_engression)
+
     #### GAM model
     def gam_model(trial):
 
         # Define the hyperparameters to optimize
         params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
-                'lam': trial.suggest_loguniform('lam', 1e-3, 1)}
+                'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
 
         # Create and train the model
         gam = LinearGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)

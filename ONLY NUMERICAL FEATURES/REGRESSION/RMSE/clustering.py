@@ -632,7 +632,7 @@ for task_id in benchmark_suite.tasks:
 
         # Define the hyperparameters to optimize
         params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
-                'lam': trial.suggest_loguniform('lam', 1e-3, 1)}
+                'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
 
         # Create and train the model
         gam = LinearGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
