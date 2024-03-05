@@ -44,8 +44,6 @@ for task_id in benchmark_suite.tasks:
     os.makedirs('CHECKPOINTS/SPATIAL_DEPTH', exist_ok=True)
     CHECKPOINT_PATH = f'CHECKPOINTS/SPATIAL_DEPTH/task_{task_id}.pt'
 
-    print(f"Task {task_id}")
-
     task = openml.tasks.get_task(task_id)  # download the OpenML task
     dataset = task.get_dataset()
 

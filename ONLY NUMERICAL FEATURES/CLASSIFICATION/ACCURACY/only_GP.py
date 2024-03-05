@@ -32,6 +32,10 @@ from gpytorch.variational import VariationalStrategy
 from gpytorch.mlls.variational_elbo import VariationalELBO
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
+from gpytorch.mlls.variational_elbo import VariationalELBO
+from gpytorch.models import AbstractVariationalGP
+from gpytorch.variational import CholeskyVariationalDistribution
+from gpytorch.variational import VariationalStrategy
 
 #SUITE_ID = 336 # Regression on numerical features
 SUITE_ID = 337 # Classification on numerical features
@@ -146,11 +150,6 @@ val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 
-from gpytorch.models import AbstractVariationalGP
-from gpytorch.variational import CholeskyVariationalDistribution
-from gpytorch.variational import VariationalStrategy
-
-
 class GPClassificationModel(AbstractVariationalGP):
     def __init__(self, train_x):
         variational_distribution = CholeskyVariationalDistribution(10)
@@ -170,7 +169,8 @@ class GPClassificationModel(AbstractVariationalGP):
 model = GPClassificationModel(X_train__tensor)
 likelihood = gpytorch.likelihoods.BernoulliLikelihood()
 
-from gpytorch.mlls.variational_elbo import VariationalELBO
+if torch.cuda.is_available():
+    model = model.cuda()
 
 # Find optimal model hyperparameters
 model.train()
