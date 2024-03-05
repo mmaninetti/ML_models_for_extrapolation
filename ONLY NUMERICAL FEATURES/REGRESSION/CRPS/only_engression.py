@@ -156,7 +156,7 @@ def engressor_NN(trial):
     # Calculate the CRPS for each prediction
     crps_values = [crps_ensemble(y_val_np[i], np.array(y_val_hat_engression_samples[i].cpu()).reshape(-1,)) for i in range(len(y_val_np))]
 
-    return np.mean(crps_values.cpu())
+    return np.mean(crps_values)
 
 sampler_engression = optuna.samplers.TPESampler(seed=seed)
 study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')
@@ -177,6 +177,6 @@ else:
 y_test_hat_engression_samples = [engressor_model.sample(torch.Tensor(np.array([X_test.values[i]])).cuda() if torch.cuda.is_available() else torch.Tensor(np.array([X_test.values[i]])), sample_size=N_SAMPLES) for i in range(len(X_test))]
 # Calculate the CRPS for each prediction
 crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i].cpu()).reshape(-1,)) for i in range(len(y_test_np))]
-CRPS_engression=np.mean(crps_values.cpu())
+CRPS_engression=np.mean(crps_values)
 
 print("CRPS engression", CRPS_engression)
