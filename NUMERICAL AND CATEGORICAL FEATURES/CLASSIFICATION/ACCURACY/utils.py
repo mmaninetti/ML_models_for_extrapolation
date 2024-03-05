@@ -4,7 +4,7 @@ import tqdm.auto as tqdm
 import gpytorch
 
 #### Define early stopping function
-class EarlyStopping:
+class EarlyStopping():
     def __init__(self, patience=40, verbose=False, delta=0, path='checkpoint.pt'):
         self.patience = patience
         self.verbose = verbose
@@ -35,11 +35,10 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
 #### Define train function
-def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping):
-    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
+def train(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping,checkpoint_path):
 
     n_epochs=0
-    for _ in iterator:
+    for _ in range(training_iterations):
         n_epochs += 1
         for batch_X, batch_y in train_loader:
             # Move batch to device
@@ -57,8 +56,6 @@ def train(model, criterion, optimizer, training_iterations, train_loader, val_lo
             # Backward pass and optimize
             loss.backward()
             optimizer.step()
-
-            iterator.set_postfix(loss=loss.item())
 
         # Validation
         with torch.no_grad():
@@ -87,18 +84,17 @@ def train(model, criterion, optimizer, training_iterations, train_loader, val_lo
         if early_stopping.early_stop:
             print("Early stopping")
             # Load the best model parameters
-            model.load_state_dict(torch.load('checkpoint.pt'))
+            model.load_state_dict(torch.load(checkpoint_path))
             n_epochs=n_epochs-early_stopping.patience
             break
 
     return n_epochs
 
 
-def train_trans(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping):
-    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
+def train_trans(model, criterion, optimizer, training_iterations, train_loader, val_loader, early_stopping, checkpoint_path):
 
     n_epochs=0
-    for _ in iterator:
+    for _ in range(training_iterations):
         n_epochs += 1
         for batch_X, batch_y in train_loader:
             # Move batch to device
@@ -117,7 +113,6 @@ def train_trans(model, criterion, optimizer, training_iterations, train_loader, 
             loss.backward()
             optimizer.step()
 
-            iterator.set_postfix(loss=loss.item())
 
         # Validation
         with torch.no_grad():
@@ -146,17 +141,16 @@ def train_trans(model, criterion, optimizer, training_iterations, train_loader, 
         if early_stopping.early_stop:
             print("Early stopping")
             # Load the best model parameters
-            model.load_state_dict(torch.load('checkpoint.pt'))
+            model.load_state_dict(torch.load(checkpoint_path))
             n_epochs=n_epochs-early_stopping.patience
             break
 
     return n_epochs
 
 def train_no_early_stopping(model, criterion, optimizer, training_iterations, train_loader):
-    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
-    for _ in iterator:
+    for _ in range(training_iterations):
         n_epochs += 1
         for batch_X, batch_y in train_loader:
             # Move batch to device
@@ -175,14 +169,11 @@ def train_no_early_stopping(model, criterion, optimizer, training_iterations, tr
             loss.backward()
             optimizer.step()
 
-            iterator.set_postfix(loss=loss.item())
-
 #### Define train function for transformer
 def train_trans_no_early_stopping(model, criterion, optimizer, training_iterations, train_loader):
-    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
     n_epochs=0
-    for _ in iterator:
+    for _ in range(training_iterations):
         n_epochs += 1
         for batch_X, batch_y in train_loader:
             # Move batch to device
@@ -201,13 +192,10 @@ def train_trans_no_early_stopping(model, criterion, optimizer, training_iteratio
             loss.backward()
             optimizer.step()
 
-            iterator.set_postfix(loss=loss.item())
-
 
 def train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer):
-    iterator = tqdm.tqdm(range(training_iterations), desc="Train")
 
-    for _ in iterator:
+    for _ in range(training_iterations):
         # Zero backprop gradients
         optimizer.zero_grad()
         # Get output from model
@@ -215,7 +203,6 @@ def train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimiz
         # Calc loss and backprop derivatives
         loss = -mll(output, y_train_tensor)
         loss.backward()
-        iterator.set_postfix(loss=loss.item())
         optimizer.step()
         torch.cuda.empty_cache()
 
