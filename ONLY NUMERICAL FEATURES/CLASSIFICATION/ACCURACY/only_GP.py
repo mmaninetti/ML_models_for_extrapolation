@@ -189,9 +189,9 @@ for i in range(training_iter):
     # Zero backpropped gradients from previous iteration
     optimizer.zero_grad()
     # Get predictive output
-    output = model(X_train__tensor)
+    output = model(X_train__tensor.float())
     # Calc loss and backprop gradients
-    loss = -mll(output, y_train__tensor)
+    loss = -mll(output, y_train__tensor.float())
     loss.backward()
     print('Iter %d/%d - Loss: %.3f' % (i + 1, training_iter, loss.item()))
     optimizer.step()
