@@ -664,7 +664,7 @@ y_test_hat_gam = final_gam_model.predict(X_test)
 accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
 print("Accuracy GAM: ", accuracy_gam)
 
-accuracy_results = {'GP': accuracy_GP, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'linear_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': accuracy_gam}  
+accuracy_results = {'GP': accuracy_GP.item(), 'MLP': accuracy_MLP.item(), 'ResNet': accuracy_ResNet.item(), 'FTTrans': accuracy_FTTrans.item(), 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'linear_regression': accuracy_logreg, 'engression': accuracy_engression.item(), 'GAM': accuracy_gam} 
 
 # Convert the dictionary to a DataFrame
 df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])

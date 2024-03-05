@@ -644,7 +644,7 @@ for task_id in benchmark_suite.tasks:
     RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
     print("RMSE GAM: ", RMSE_gam)
 
-    RMSE_results = {'GP': RMSE_GP, 'MLP': RMSE_MLP, 'ResNet': RMSE_ResNet, 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression, 'GAM': RMSE_gam}  
+    RMSE_results = {'GP': RMSE_GP.item(), 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans.item(), 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam} 
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
