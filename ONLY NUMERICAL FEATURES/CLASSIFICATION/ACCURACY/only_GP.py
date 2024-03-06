@@ -172,6 +172,9 @@ likelihood = gpytorch.likelihoods.BernoulliLikelihood()
 if torch.cuda.is_available():
     model = model.cuda()
 
+model = model.float()
+likelihood = likelihood.float()
+
 # Find optimal model hyperparameters
 model.train()
 likelihood.train()

@@ -40,7 +40,7 @@ SUITE_ID = 335 # Regression on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361093
-for task_id in benchmark_suite.tasks:
+for task_id in benchmark_suite.tasks[1:]:
 
     print(f"Task {task_id}")
 
