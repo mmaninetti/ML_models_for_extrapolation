@@ -33,7 +33,7 @@ SUITE_ID = 336 # Regression on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 # task_id=361072
-for task_id in benchmark_suite.tasks[5:]:
+for task_id in benchmark_suite.tasks[7:]:
 
     # Create the checkpoint directory if it doesn't exist
     os.makedirs('CHECKPOINTS/MAHALANOBIS', exist_ok=True)
@@ -212,6 +212,7 @@ for task_id in benchmark_suite.tasks[5:]:
     # Calculate RMSE
     RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
     print("RMSE GP: ", RMSE_GP)
+    del model, likelihood, optimizer, mll, y_pred
 
 
     #### MLP
@@ -297,6 +298,7 @@ for task_id in benchmark_suite.tasks[5:]:
         y_test_hat_MLP = y_test_hat_MLP.cuda()
     RMSE_MLP=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_MLP)))
     print("RMSE MLP: ", RMSE_MLP)
+    del MLP_model, optimizer, criterion, y_test_hat_MLP, predictions
 
     # #### ResNet
     d_out = 1  
@@ -388,6 +390,7 @@ for task_id in benchmark_suite.tasks[5:]:
         y_test_hat_ResNet = y_test_hat_ResNet.cuda()
     RMSE_ResNet=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_ResNet)))
     print("RMSE ResNet: ", RMSE_ResNet)
+    del ResNet_model, optimizer, criterion, y_test_hat_ResNet, predictions
 
     #### FFTransformer
     d_out = 1  
@@ -491,6 +494,7 @@ for task_id in benchmark_suite.tasks[5:]:
 
     RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_FTTrans)))
     print("RMSE FTTrans: ", RMSE_FTTrans)
+    del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
 
     # #### Boosted trees, random forest, engression, linear regression
 
