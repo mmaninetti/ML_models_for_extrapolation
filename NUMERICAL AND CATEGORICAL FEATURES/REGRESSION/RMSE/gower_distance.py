@@ -38,7 +38,7 @@ SUITE_ID = 335 # Regression on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361093
-for task_id in benchmark_suite.tasks[2:]:
+for task_id in benchmark_suite.tasks:
 
     print(f"Task {task_id}")
 
@@ -117,18 +117,31 @@ for task_id in benchmark_suite.tasks[2:]:
     y_train_ = y_train.loc[close_index_train]
     y_val = y_train.loc[far_index_train]
 
+        # Standardize the data
+    mean_X_train_ = np.mean(X_train_, axis=0)
+    std_X_train_ = np.std(X_train_, axis=0)
+    X_train__scaled = (X_train_ - mean_X_train_) / std_X_train_
+    X_val_scaled = (X_val - mean_X_train_) / std_X_train_
+
+    mean_X_train = np.mean(X_train, axis=0)
+    std_X_train = np.std(X_train, axis=0)
+    X_train_scaled = (X_train - mean_X_train) / std_X_train
+    X_test_scaled = (X_test - mean_X_train) / std_X_train
+
+
     # Convert data to PyTorch tensors
-    X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
+    X_train__tensor = torch.tensor(X_train__scaled.values, dtype=torch.float32)
     y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
-    X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train_scaled.values, dtype=torch.float32)
     y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-    X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val_scaled.values, dtype=torch.float32)
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
-    X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test_scaled.values, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
     # Convert to use GPU if available
     if torch.cuda.is_available():
+        print("Using GPU")
         X_train__tensor = X_train__tensor.cuda()
         y_train__tensor = y_train__tensor.cuda()
         X_train_tensor = X_train_tensor.cuda()
@@ -137,6 +150,8 @@ for task_id in benchmark_suite.tasks[2:]:
         y_val_tensor = y_val_tensor.cuda()
         X_test_tensor = X_test_tensor.cuda()
         y_test_tensor = y_test_tensor.cuda()
+    else:
+        print("Using CPU")
 
     # Create flattened versions of the data
     y_val_np = y_val.values.flatten()
@@ -154,91 +169,11 @@ for task_id in benchmark_suite.tasks[2:]:
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-
-    #### Gaussian process
-    # Define the kernels
-    kernels = [
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
-    ]
-
-    best_RMSE = float('inf')
-    best_kernel = None
-
-
-    for kernel in kernels:
-        # Initialize the Gaussian Process model and likelihood
-        likelihood = gpytorch.likelihoods.GaussianLikelihood()
-        model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
-
-        if torch.cuda.is_available():
-            model = model.cuda()
-
-        # Use the adam optimizer
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-        # "Loss" for GPs - the marginal log likelihood
-        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-        # Train the model
-        model.train()
-        likelihood.train()
-        train_GP(model,X_train__tensor,y_train__tensor,GP_ITERATIONS,mll,optimizer)
-        
-        # Set the model in evaluation mode
-        model.eval()
-        likelihood.eval()
-
-        # Make predictions on the validation set
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():
-            y_pred = model(X_val_tensor)
-
-        # Calculate RMSE
-        RMSE = torch.sqrt(torch.mean(torch.square(y_val_tensor - y_pred.mean)))
-
-        # Update the best kernel if the current kernel has a lower RMSE
-        if RMSE < best_RMSE:
-            best_RMSE = RMSE
-            best_kernel = kernel
-
-    # Initialize the Gaussian Process model and likelihood
-    likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, best_kernel)
-
-    # Use the adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-    # "Loss" for GPs - the marginal log likelihood
-    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-    if torch.cuda.is_available():
-        model = model.cuda()
-
-    # Train the model
-    model.train()
-    likelihood.train()
-    train_GP(model,X_train_tensor,y_train_tensor,GP_ITERATIONS,mll,optimizer)
-
-    # Set the model in evaluation mode
-    model.eval()
-    likelihood.eval()
-
-    # Make predictions on the validation set
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        y_pred = model(X_test_tensor)
-
-    # Calculate RMSE
-    RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
-    print("RMSE GP: ", RMSE_GP)
-    del model, likelihood, optimizer, mll, y_pred
-
-
-    #### MLP
+    # Define d_out and d_in
     d_out = 1  
     d_in=X_train_.shape[1]
 
+    #### MLP
     def MLP_opt(trial):
 
         torch.manual_seed(seed)
@@ -268,7 +203,6 @@ for task_id in benchmark_suite.tasks[2:]:
         early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
         n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
         n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
-        print("n_epochs: ", n_epochs)
 
         # Point prediction
         predictions = []
@@ -304,7 +238,6 @@ for task_id in benchmark_suite.tasks[2:]:
     weight_decay=study_MLP.best_params['weight_decay']
     optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.MSELoss()
-    loss_Adam=[]
 
     train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
@@ -323,9 +256,6 @@ for task_id in benchmark_suite.tasks[2:]:
     del MLP_model, optimizer, criterion, y_test_hat_MLP, predictions
 
     # #### ResNet
-    d_out = 1  
-    d_in=X_train_.shape[1]
-
     def ResNet_opt(trial):
 
         torch.manual_seed(seed)
@@ -415,9 +345,6 @@ for task_id in benchmark_suite.tasks[2:]:
     del ResNet_model, optimizer, criterion, y_test_hat_ResNet, predictions
 
     #### FFTransformer
-    d_out = 1  
-    d_in=X_train_.shape[1]
-
     def FTTrans_opt(trial):
 
         torch.manual_seed(seed)
@@ -518,14 +445,14 @@ for task_id in benchmark_suite.tasks[2:]:
     print("RMSE FTTrans: ", RMSE_FTTrans)
     del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
 
-    # #### Boosted trees, random forest, engression, linear regression
-
+    #### Boosted trees, random forest, engression, linear regression
     def boosted(trial):
 
         params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
                 'n_estimators': trial.suggest_int('n_estimators', 100, 500),
                 'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
                 'max_depth': trial.suggest_int('max_depth', 1, 30),
+                'num_leaves': 2**10,
                 'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
         
         boosted_tree_model=lgbm.LGBMRegressor(**params)
@@ -538,13 +465,15 @@ for task_id in benchmark_suite.tasks[2:]:
     sampler_boost = optuna.samplers.TPESampler(seed=seed)
     study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
     study_boost.optimize(boosted, n_trials=N_TRIALS)
-    boosted_model=lgbm.LGBMRegressor(**study_boost.best_params)
+    params=study_boost.best_params
+    params['num_leaves']=2**10
+    boosted_model=lgbm.LGBMRegressor(**params)
 
     def rf(trial):
 
         params = {'n_estimators': trial.suggest_int('n_estimators', 100, 500),
                 'max_depth': trial.suggest_int('max_depth', 1, 30),
-                'max_features': trial.suggest_int('max_features', 1, 30),
+                'max_features': trial.suggest_float('max_features', 0, 1),
                 'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100)}
         
         rf_model=RandomForestRegressor(**params)
@@ -585,7 +514,6 @@ for task_id in benchmark_suite.tasks[2:]:
     study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')
     study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
 
-
     boosted_model.fit(X_train, y_train)
     y_test_hat_boosted=boosted_model.predict(X_test)
     RMSE_boosted=np.sqrt(np.mean((y_test-y_test_hat_boosted)**2))
@@ -598,6 +526,9 @@ for task_id in benchmark_suite.tasks[2:]:
     lin_reg.fit(X_train, y_train)
     y_test_hat_linreg=lin_reg.predict(X_test)
     RMSE_linreg=np.sqrt(np.mean((y_test-y_test_hat_linreg)**2))
+
+    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    RMSE_constant = np.sqrt(np.mean((y_test - constant_prediction) ** 2))
 
     params=study_engression.best_params
     params['noise_dim']=params['hidden_dim']
@@ -613,6 +544,7 @@ for task_id in benchmark_suite.tasks[2:]:
     print("RMSE boosted trees", RMSE_boosted)
     print("RMSE random forest", RMSE_rf)
     print("RMSE engression", RMSE_engression)
+    print("RMSE constant prediction: ", RMSE_constant)
 
     #### GAM model
     def gam_model(trial):
@@ -650,7 +582,7 @@ for task_id in benchmark_suite.tasks[2:]:
     RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
     print("RMSE GAM: ", RMSE_gam)
 
-    RMSE_results = {'GP': RMSE_GP.item(), 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans.item(), 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam} 
+    RMSE_results = {'constant': RMSE_constant, 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans.item(), 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam} 
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
