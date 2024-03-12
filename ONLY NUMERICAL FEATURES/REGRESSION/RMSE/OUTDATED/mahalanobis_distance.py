@@ -1,4 +1,3 @@
-from umap import UMAP
 import pandas as pd
 import numpy as np
 import setuptools
@@ -6,11 +5,14 @@ import openml
 from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
 import optuna
+from scipy.spatial.distance import mahalanobis
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.gaussian_process.kernels import Matern
 from engression import engression, engression_bagged
 import torch
+from sklearn.preprocessing import StandardScaler
+from scipy.spatial.distance import mahalanobis
 from scipy.stats import norm
 from sklearn.metrics import mean_squared_error
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
@@ -18,11 +20,11 @@ from properscoring import crps_gaussian, crps_ensemble
 import random
 import gpytorch
 import tqdm.auto as tqdm
-from sklearn.metrics.pairwise import euclidean_distances
 import os
 from pygam import LinearGAM, s, f
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
+
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -30,14 +32,14 @@ SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-for task_id in benchmark_suite.tasks:
+# task_id=361072
+for task_id in benchmark_suite.tasks[14:]:
 
     # Create the checkpoint directory if it doesn't exist
-    os.makedirs('CHECKPOINTS/UMAP', exist_ok=True)
-    CHECKPOINT_PATH = f'CHECKPOINTS/UMAP/task_{task_id}.pt'
+    os.makedirs('CHECKPOINTS/MAHALANOBIS', exist_ok=True)
+    CHECKPOINT_PATH = f'CHECKPOINTS/MAHALANOBIS/task_{task_id}.pt'
 
     print(f"Task {task_id}")
-
 
     task = openml.tasks.get_task(task_id)  # download the OpenML task
     dataset = task.get_dataset()
@@ -60,64 +62,46 @@ for task_id in benchmark_suite.tasks:
     random.seed(seed)
 
 
-    # Apply UMAP decomposition
-    umap = UMAP(n_components=2, random_state=42)
-    X_umap = umap.fit_transform(X)
+    # calculate the mean and covariance matrix of the dataset
+    mean = np.mean(X, axis=0)
+    cov = np.cov(X.T)
 
-    # calculate the Euclidean distance matrix
-    euclidean_dist_matrix = euclidean_distances(X_umap)
+    # calculate the Mahalanobis distance for each data point
+    mahalanobis_dist = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X.values]
 
-    # calculate the Euclidean distance for each data point
-    euclidean_dist = np.mean(euclidean_dist_matrix, axis=1)
-
-    euclidean_dist = pd.Series(euclidean_dist, index=X.index)
-    far_index = euclidean_dist.index[np.where(euclidean_dist >= np.quantile(euclidean_dist, 0.8))[0]]
-    close_index = euclidean_dist.index[np.where(euclidean_dist < np.quantile(euclidean_dist, 0.8))[0]]
+    mahalanobis_dist=pd.Series(mahalanobis_dist,index=X.index)
+    far_index=mahalanobis_dist.index[np.where(mahalanobis_dist>=np.quantile(mahalanobis_dist,0.8))[0]]
+    close_index=mahalanobis_dist.index[np.where(mahalanobis_dist<np.quantile(mahalanobis_dist,0.8))[0]]
 
     X_train = X.loc[close_index,:]
     X_test = X.loc[far_index,:]
     y_train = y.loc[close_index]
     y_test = y.loc[far_index]
 
-    # Apply UMAP decomposition on the training set
-    X_umap_train = umap.fit_transform(X_train)
+    mean = np.mean(X_train, axis=0)
+    cov = np.cov(X_train.T)
 
-    # calculate the Euclidean distance matrix for the training set
-    euclidean_dist_matrix_train = euclidean_distances(X_umap_train)
+    # calculate the Mahalanobis distance for each data point
+    mahalanobis_dist_ = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_train.values]
 
-    # calculate the Euclidean distance for each data point in the training set
-    euclidean_dist_train = np.mean(euclidean_dist_matrix_train, axis=1)
+    mahalanobis_dist_=pd.Series(mahalanobis_dist_,index=X_train.index)
+    far_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_>=np.quantile(mahalanobis_dist_,0.8))[0]]
+    close_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_<np.quantile(mahalanobis_dist_,0.8))[0]]
 
-    euclidean_dist_train = pd.Series(euclidean_dist_train, index=X_train.index)
-    far_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train >= np.quantile(euclidean_dist_train, 0.8))[0]]
-    close_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train < np.quantile(euclidean_dist_train, 0.8))[0]]
-
-    X_train_ = X_train.loc[close_index_train,:]
-    X_val = X_train.loc[far_index_train,:]
-    y_train_ = y_train.loc[close_index_train]
-    y_val = y_train.loc[far_index_train]
-
-
-        # Standardize the data
-    mean_X_train_ = np.mean(X_train_, axis=0)
-    std_X_train_ = np.std(X_train_, axis=0)
-    X_train__scaled = (X_train_ - mean_X_train_) / std_X_train_
-    X_val_scaled = (X_val - mean_X_train_) / std_X_train_
-
-    mean_X_train = np.mean(X_train, axis=0)
-    std_X_train = np.std(X_train, axis=0)
-    X_train_scaled = (X_train - mean_X_train) / std_X_train
-    X_test_scaled = (X_test - mean_X_train) / std_X_train
+    X_train_ = X_train.loc[close_index_,:]
+    X_val = X_train.loc[far_index_,:]
+    y_train_ = y_train.loc[close_index_]
+    y_val = y_train.loc[far_index_]
 
 
     # Convert data to PyTorch tensors
-    X_train__tensor = torch.tensor(X_train__scaled.values, dtype=torch.float32)
+    X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
     y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
-    X_train_tensor = torch.tensor(X_train_scaled.values, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
     y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-    X_val_tensor = torch.tensor(X_val_scaled.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
-    X_test_tensor = torch.tensor(X_test_scaled.values, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
     # Convert to use GPU if available
@@ -150,11 +134,91 @@ for task_id in benchmark_suite.tasks:
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    # Define d_out and d_in
+
+    #### Gaussian process
+    # Define the kernels
+    kernels = [
+        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
+        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=X_train_.shape[1])),
+        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=X_train_.shape[1])),
+        gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
+    ]
+
+    best_RMSE = float('inf')
+    best_kernel = None
+
+
+    for kernel in kernels:
+        # Initialize the Gaussian Process model and likelihood
+        likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
+
+        if torch.cuda.is_available():
+            model = model.cuda()
+
+        # Use the adam optimizer
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+        # "Loss" for GPs - the marginal log likelihood
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+
+        # Train the model
+        model.train()
+        likelihood.train()
+        train_GP(model,X_train__tensor,y_train__tensor,GP_ITERATIONS,mll,optimizer)
+        
+        # Set the model in evaluation mode
+        model.eval()
+        likelihood.eval()
+
+        # Make predictions on the validation set
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            y_pred = model(X_val_tensor)
+
+        # Calculate RMSE
+        RMSE = torch.sqrt(torch.mean(torch.square(y_val_tensor - y_pred.mean)))
+
+        # Update the best kernel if the current kernel has a lower RMSE
+        if RMSE < best_RMSE:
+            best_RMSE = RMSE
+            best_kernel = kernel
+
+    # Initialize the Gaussian Process model and likelihood
+    likelihood = gpytorch.likelihoods.GaussianLikelihood()
+    model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, best_kernel)
+
+    # Use the adam optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    # "Loss" for GPs - the marginal log likelihood
+    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+
+    if torch.cuda.is_available():
+        model = model.cuda()
+
+    # Train the model
+    model.train()
+    likelihood.train()
+    train_GP(model,X_train_tensor,y_train_tensor,GP_ITERATIONS,mll,optimizer)
+
+    # Set the model in evaluation mode
+    model.eval()
+    likelihood.eval()
+
+    # Make predictions on the validation set
+    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+        y_pred = model(X_test_tensor)
+
+    # Calculate RMSE
+    RMSE_GP = torch.sqrt(torch.mean(torch.square(y_test_tensor - y_pred.mean)))
+    print("RMSE GP: ", RMSE_GP)
+    del model, likelihood, optimizer, mll, y_pred
+
+
+    #### MLP
     d_out = 1  
     d_in=X_train_.shape[1]
 
-    #### MLP
     def MLP_opt(trial):
 
         torch.manual_seed(seed)
@@ -237,6 +301,9 @@ for task_id in benchmark_suite.tasks:
     del MLP_model, optimizer, criterion, y_test_hat_MLP, predictions
 
     # #### ResNet
+    d_out = 1  
+    d_in=X_train_.shape[1]
+
     def ResNet_opt(trial):
 
         torch.manual_seed(seed)
@@ -326,6 +393,9 @@ for task_id in benchmark_suite.tasks:
     del ResNet_model, optimizer, criterion, y_test_hat_ResNet, predictions
 
     #### FFTransformer
+    d_out = 1  
+    d_in=X_train_.shape[1]
+
     def FTTrans_opt(trial):
 
         torch.manual_seed(seed)
@@ -426,14 +496,14 @@ for task_id in benchmark_suite.tasks:
     print("RMSE FTTrans: ", RMSE_FTTrans)
     del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
 
-    #### Boosted trees, random forest, engression, linear regression
+    # #### Boosted trees, random forest, engression, linear regression
+
     def boosted(trial):
 
         params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
                 'n_estimators': trial.suggest_int('n_estimators', 100, 500),
                 'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
                 'max_depth': trial.suggest_int('max_depth', 1, 30),
-                'num_leaves': 2**10,
                 'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
         
         boosted_tree_model=lgbm.LGBMRegressor(**params)
@@ -446,15 +516,13 @@ for task_id in benchmark_suite.tasks:
     sampler_boost = optuna.samplers.TPESampler(seed=seed)
     study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
     study_boost.optimize(boosted, n_trials=N_TRIALS)
-    params=study_boost.best_params
-    params['num_leaves']=2**10
-    boosted_model=lgbm.LGBMRegressor(**params)
+    boosted_model=lgbm.LGBMRegressor(**study_boost.best_params)
 
     def rf(trial):
 
         params = {'n_estimators': trial.suggest_int('n_estimators', 100, 500),
                 'max_depth': trial.suggest_int('max_depth', 1, 30),
-                'max_features': trial.suggest_float('max_features', 0, 1),
+                'max_features': trial.suggest_int('max_features', 1, 30),
                 'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100)}
         
         rf_model=RandomForestRegressor(**params)
@@ -495,6 +563,7 @@ for task_id in benchmark_suite.tasks:
     study_engression = optuna.create_study(sampler=sampler_engression, direction='minimize')
     study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
 
+
     boosted_model.fit(X_train, y_train)
     y_test_hat_boosted=boosted_model.predict(X_test)
     RMSE_boosted=np.sqrt(np.mean((y_test-y_test_hat_boosted)**2))
@@ -507,9 +576,6 @@ for task_id in benchmark_suite.tasks:
     lin_reg.fit(X_train, y_train)
     y_test_hat_linreg=lin_reg.predict(X_test)
     RMSE_linreg=np.sqrt(np.mean((y_test-y_test_hat_linreg)**2))
-
-    constant_prediction = np.full_like(y_test, np.mean(y_train))
-    RMSE_constant = np.sqrt(np.mean((y_test - constant_prediction) ** 2))
 
     params=study_engression.best_params
     params['noise_dim']=params['hidden_dim']
@@ -525,7 +591,6 @@ for task_id in benchmark_suite.tasks:
     print("RMSE boosted trees", RMSE_boosted)
     print("RMSE random forest", RMSE_rf)
     print("RMSE engression", RMSE_engression)
-    print("RMSE constant prediction: ", RMSE_constant)
 
     #### GAM model
     def gam_model(trial):
@@ -563,13 +628,13 @@ for task_id in benchmark_suite.tasks:
     RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
     print("RMSE GAM: ", RMSE_gam)
 
-    RMSE_results = {'constant': RMSE_constant, 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans.item(), 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam} 
+    RMSE_results = {'GP': RMSE_GP.item(), 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans.item(), 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam} 
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
+    os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_RMSE_results.csv', index=False)
+    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv', index=False)
