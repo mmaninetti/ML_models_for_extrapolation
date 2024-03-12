@@ -123,7 +123,7 @@ for task_id in benchmark_suite.tasks:
     y_val = y_train.loc[far_index_train]
 
     # Standardize the data for non-dummy variables
-    non_dummy_cols = X.select_dtypes(exclude=['uint8']).columns
+    non_dummy_cols = X.select_dtypes(exclude=['bool']).columns
     mean_X_train_ = np.mean(X_train_[non_dummy_cols], axis=0)
     std_X_train_ = np.std(X_train_[non_dummy_cols], axis=0)
     X_train__scaled = X_train_.copy()
