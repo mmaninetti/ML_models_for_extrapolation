@@ -26,7 +26,7 @@ from torch import nn
 from torch.optim import Adam
 from sklearn.metrics import log_loss
 from sklearn.preprocessing import LabelEncoder
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 
 
@@ -50,6 +50,14 @@ for task_id in benchmark_suite.tasks:
 
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
+
+    # Find features with absolute correlation > 0.9
+    corr_matrix = X.corr().abs()
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
+
+    # Drop one of the highly correlated features
+    X = X.drop(high_corr_features, axis=1)
 
     # Transform y to int type, to then be able to apply BCEWithLogitsLoss
     # Create a label encoder
@@ -149,14 +157,26 @@ for task_id in benchmark_suite.tasks:
     y_val = y_train.loc[far_index_]
 
 
+    # Standardize the data
+    mean_X_train_ = np.mean(X_train_, axis=0)
+    std_X_train_ = np.std(X_train_, axis=0)
+    X_train__scaled = (X_train_ - mean_X_train_) / std_X_train_
+    X_val_scaled = (X_val - mean_X_train_) / std_X_train_
+
+    mean_X_train = np.mean(X_train, axis=0)
+    std_X_train = np.std(X_train, axis=0)
+    X_train_scaled = (X_train - mean_X_train) / std_X_train
+    X_test_scaled = (X_test - mean_X_train) / std_X_train
+
+
     # Convert data to PyTorch tensors
-    X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
+    X_train__tensor = torch.tensor(X_train__scaled.values, dtype=torch.float32)
     y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
-    X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train_scaled.values, dtype=torch.float32)
     y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-    X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val_scaled.values, dtype=torch.float32)
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
-    X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test_scaled.values, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
     # Convert to use GPU if available
@@ -186,118 +206,11 @@ for task_id in benchmark_suite.tasks:
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    #### Gaussian process
-    # Define your model
-    class ExactGPModel(gpytorch.models.ExactGP):
-        def __init__(self, train_x, train_y, likelihood, kernel):
-            super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-            self.mean_module = gpytorch.means.ConstantMean()
-            self.covar_module = kernel
-
-        def forward(self, x):
-            mean_x = self.mean_module(x)
-            covar_x = self.covar_module(x)
-            return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-    # Define the learning params
-    training_iterations = GP_ITERATIONS
-
-    # Define the kernels
-    kernels = [
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
-    ]
-
-    best_log_loss = float('inf')
-    best_kernel = None
-
-
-    for kernel in kernels:
-        # Initialize the Gaussian Process model and likelihood
-        likelihood = gpytorch.likelihoods.BernoulliLikelihood()
-        model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
-
-        if torch.cuda.is_available():
-            model = model.cuda()
-
-        # Use the adam optimizer
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-        # "Loss" for GPs - the marginal log likelihood
-        mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=len(y_train__tensor))
-
-        # Train the model
-        train_GP(model,X_train__tensor,y_train__tensor,training_iterations,mll,optimizer)
-        
-        # Set the model in evaluation mode
-        model.eval()
-        likelihood.eval()
-
-        # Make predictions on the validation set
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():
-            output = model(X_val_tensor)
-            preds = likelihood(output)
-
-        # Calculate log loss
-        current_log_loss = log_loss(y_val_tensor.cpu().numpy(), preds.mean.cpu().numpy())
-
-        # Update the best kernel if the current kernel has a lower log loss
-        if current_log_loss < best_log_loss:
-            best_log_loss = current_log_loss
-            best_kernel = kernel
-
-    # Set the random seed for reproducibility
-
-    class ExactGPModel(gpytorch.models.ExactGP):
-        def __init__(self, train_x, train_y, likelihood):
-            super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-            self.mean_module = gpytorch.means.ConstantMean()
-            self.covar_module = best_kernel
-
-        def forward(self, x):
-            mean_x = self.mean_module(x)
-            covar_x = self.covar_module(x)
-            return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-    # Define the learning params
-    training_iterations = GP_ITERATIONS
-
-    # Initialize the Gaussian Process model and likelihood
-    likelihood = gpytorch.likelihoods.BernoulliLikelihood()
-    model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood)
-
-    # Use the adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-    # "Loss" for GPs - the marginal log likelihood
-    mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=len(y_train_tensor))
-
-    if torch.cuda.is_available():
-        model = model.cuda()
-
-    # Train the model
-    train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer)
-
-    # Set the model in evaluation mode
-    model.eval()
-    likelihood.eval()
-
-    # Make predictions on the test set
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        output = model(X_test_tensor)
-        preds = likelihood(output)
-
-    # Calculate log loss
-    log_loss_GP = log_loss(y_test_tensor.cpu().numpy(), preds.mean.cpu().numpy())
-    print("Log Loss GP: ", log_loss_GP)
-
-
-    # #### MLP
     d_out = 1  
     d_in=X_train_.shape[1]
 
+
+    # #### MLP
     def MLP_opt(trial):
 
         torch.manual_seed(seed)
@@ -320,7 +233,6 @@ for task_id in benchmark_suite.tasks:
         weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
         optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-        loss_Adam=[]
 
         if torch.cuda.is_available():
             MLP_model = MLP_model.cuda()
@@ -330,7 +242,12 @@ for task_id in benchmark_suite.tasks:
         n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
         # Point prediction
-        y_val_hat_MLP = torch.sigmoid(MLP_model(X_val_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = MLP_model(batch_X).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+        y_val_hat_MLP = torch.sigmoid(torch.tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
         log_loss_MLP = log_loss(y_val_tensor.cpu().numpy(), y_val_hat_MLP.cpu().numpy())  # Calculate log loss
 
         return log_loss_MLP
@@ -355,19 +272,21 @@ for task_id in benchmark_suite.tasks:
     weight_decay=study_MLP.best_params['weight_decay']
     optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-    loss_Adam=[]
-
-    train_no_early_stopping(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+    
+    train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
-    y_test_hat_MLP = torch.sigmoid(MLP_model(X_test_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in test_loader:
+            batch_predictions = MLP_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_test_hat_MLP = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))
     log_loss_MLP = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_MLP.cpu().numpy())  # Calculate log loss
     print("Log Loss MLP: ", log_loss_MLP)
 
     # #### ResNet
-    d_out = 1  
-    d_in=X_train_.shape[1]
-
     def ResNet_opt(trial):
 
         torch.manual_seed(seed)
@@ -399,12 +318,18 @@ for task_id in benchmark_suite.tasks:
         criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
         loss_Adam=[]
 
-        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-        n_epochs=train(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train(ResNet_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
         n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
         # Point prediction
-        y_val_hat_ResNet = torch.sigmoid(ResNet_model(X_val_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = ResNet_model(batch_X).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+
+        y_val_hat_ResNet = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
         log_loss_ResNet = log_loss(y_val_tensor.cpu().numpy(), y_val_hat_ResNet.cpu().numpy())  # Calculate log loss
 
         return log_loss_ResNet
@@ -432,12 +357,17 @@ for task_id in benchmark_suite.tasks:
     weight_decay=study_ResNet.best_params['weight_decay']
     optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-    loss_Adam=[]
-
-    train_no_early_stopping(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+    
+    train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
-    y_test_hat_ResNet = torch.sigmoid(ResNet_model(X_test_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in test_loader:
+            batch_predictions = ResNet_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_test_hat_ResNet = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
     log_loss_ResNet = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_ResNet.cpu().numpy())  # Calculate log loss
     print("Log Loss ResNet: ", log_loss_ResNet)
 
@@ -482,14 +412,19 @@ for task_id in benchmark_suite.tasks:
         weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
         optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-        loss_Adam=[]
 
-        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-        n_epochs=train_trans(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
         n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
         # Point prediction
-        y_val_hat_FTTrans = torch.sigmoid(FTTrans_model(X_val_tensor, None).reshape(-1,))  # Apply sigmoid to get probabilities
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+
+        y_val_hat_FTTrans = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
         log_loss_FTTrans = log_loss(y_val_tensor.cpu().numpy(), y_val_hat_FTTrans.cpu().numpy())  # Calculate log loss
 
         return log_loss_FTTrans
@@ -521,23 +456,28 @@ for task_id in benchmark_suite.tasks:
     weight_decay=study_FTTrans.best_params['weight_decay']
     optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-    loss_Adam=[]
 
-    train_trans_no_early_stopping(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+    train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
-    y_test_hat_FTTrans = torch.sigmoid(FTTrans_model(X_test_tensor, None).reshape(-1,))  # Apply sigmoid to get probabilities
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in test_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_test_hat_FTTrans = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
     log_loss_FTTrans = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.cpu().numpy())  # Calculate log loss
     print("Log Loss FTTrans: ", log_loss_FTTrans)
 
-    # #### Boosted trees, random forest, engression, linear regression
-
+    #### Boosted trees, random forest, engression, linear regression
     def boosted(trial):
 
         params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
                 'n_estimators': trial.suggest_int('n_estimators', 100, 500),
                 'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
                 'max_depth': trial.suggest_int('max_depth', 1, 30),
+                'num_leaves': 2**10,
                 'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
         
         boosted_tree_model=lgbm.LGBMClassifier(**params)
@@ -550,13 +490,16 @@ for task_id in benchmark_suite.tasks:
     sampler_boost = optuna.samplers.TPESampler(seed=seed)
     study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')  # We want to minimize log loss
     study_boost.optimize(boosted, n_trials=N_TRIALS)
-    boosted_model=lgbm.LGBMClassifier(**study_boost.best_params)
+    params=study_boost.best_params
+    params['num_leaves']=2**10
+    boosted_model=lgbm.LGBMClassifier(**params)
+
 
     def rf(trial):
 
         params = {'n_estimators': trial.suggest_int('n_estimators', 100, 500),
                 'max_depth': trial.suggest_int('max_depth', 1, 30),
-                'max_features': trial.suggest_int('max_features', 1, 30),
+                'max_features': trial.suggest_float('max_features', 0, 1),
                 'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100)}
         
         rf_model=RandomForestClassifier(**params)
@@ -582,9 +525,9 @@ for task_id in benchmark_suite.tasks:
 
         # Check if CUDA is available and if so, move the tensors and the model to the GPU
         if torch.cuda.is_available():
-            engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'], device="cuda")
+            engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, sigmoid=True, resblock=params['resblock'], device="cuda")
         else: 
-            engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'])
+            engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, sigmoid=True, resblock=params['resblock'])
         
         # Generate a sample from the engression model for each data point
         y_val_hat_engression = engressor_model.predict(X_val_tensor, target="mean")  # Get predicted probabilities
@@ -618,14 +561,17 @@ for task_id in benchmark_suite.tasks:
     params['noise_dim']=params['hidden_dim']
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
     if torch.cuda.is_available():
-        engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'], device="cuda")
+        engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, sigmoid=True, resblock=params['resblock'], device="cuda")
     else: 
-        engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'])
+        engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, sigmoid=True, resblock=params['resblock'])
     # Assuming the model outputs probabilities for the two classes
     y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
     # Assuming the model outputs probabilities for the two classes
     y_test_hat_engression = engressor_model.predict(X_test_tensor, target="mean")
     log_loss_engression = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate log loss
+
+    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    log_loss_constant = log_loss(y_test, constant_prediction)
 
     print("Log Loss logistic regression: ", log_loss_logreg)
     print("Log Loss boosted trees: ", log_loss_boosted)
@@ -638,7 +584,7 @@ for task_id in benchmark_suite.tasks:
         # Define the hyperparameters to optimize
         params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
                 'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
-
+        
         # Create and train the model
         gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
 
@@ -668,10 +614,11 @@ for task_id in benchmark_suite.tasks:
     log_loss_gam = log_loss(y_test, y_test_hat_gam)
     print("Log Loss GAM: ", log_loss_gam)
 
-    log_loss_results = {'GP': log_loss_GP.item(), 'MLP': log_loss_MLP.item(), 'ResNet': log_loss_ResNet.item(), 'FTTrans': log_loss_FTTrans.item(), 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'linear_regression': log_loss_logreg, 'engression': log_loss_engression.item(), 'GAM': log_loss_gam}  
+    log_loss_results = {'constant': log_loss_constant.item(), 'MLP': log_loss_MLP.item(), 'ResNet': log_loss_ResNet.item(), 'FTTrans': log_loss_FTTrans.item(), 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'linear_regression': log_loss_logreg, 'engression': log_loss_engression.item(), 'GAM': log_loss_gam}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])
+
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS/CLUSTERING', exist_ok=True)

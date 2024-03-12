@@ -60,7 +60,6 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     # Drop one of the highly correlated features
     X = X.drop(high_corr_features, axis=1)
 
-
     # Transform y to int type, to then be able to apply BCEWithLogitsLoss
     # Create a label encoder
     le = LabelEncoder()
@@ -82,7 +81,6 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
-
 
     # Compute Gower distance and define train and test set
     # calculate the Gower distance matrix
