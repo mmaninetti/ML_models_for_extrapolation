@@ -54,6 +54,14 @@ for task_id in benchmark_suite.tasks[1:]:
 
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
+    
+    # Find features with absolute correlation > 0.9
+    corr_matrix = X.corr().abs()
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
+
+    # Drop one of the highly correlated features
+    X = X.drop(high_corr_features, axis=1)
 
 
     # Set the random seed for reproducibility
@@ -115,14 +123,31 @@ for task_id in benchmark_suite.tasks[1:]:
     y_train_ = y_train.loc[close_index_train]
     y_val = y_train.loc[far_index_train]
 
+    # Standardize the data for non-dummy variables
+    non_dummy_cols = X.select_dtypes(exclude=['uint8']).columns
+    mean_X_train_ = np.mean(X_train_[non_dummy_cols], axis=0)
+    std_X_train_ = np.std(X_train_[non_dummy_cols], axis=0)
+    X_train__scaled = X_train_.copy()
+    X_train__scaled[non_dummy_cols] = (X_train_[non_dummy_cols] - mean_X_train_) / std_X_train_
+    X_val_scaled = X_val.copy()
+    X_val_scaled[non_dummy_cols] = (X_val[non_dummy_cols] - mean_X_train_) / std_X_train_
+
+    mean_X_train = np.mean(X_train[non_dummy_cols], axis=0)
+    std_X_train = np.std(X_train[non_dummy_cols], axis=0)
+    X_train_scaled = X_train.copy()
+    X_train_scaled[non_dummy_cols] = (X_train[non_dummy_cols] - mean_X_train) / std_X_train
+    X_test_scaled = X_test.copy()
+    X_test_scaled[non_dummy_cols] = (X_test[non_dummy_cols] - mean_X_train) / std_X_train
+
+
     # Convert data to PyTorch tensors
-    X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
+    X_train__tensor = torch.tensor(X_train__scaled.values, dtype=torch.float32)
     y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
-    X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train_scaled.values, dtype=torch.float32)
     y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-    X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val_scaled.values, dtype=torch.float32)
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
-    X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test_scaled.values, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
     # Convert to use GPU if available
@@ -152,107 +177,11 @@ for task_id in benchmark_suite.tasks[1:]:
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    #### Gaussian process
-    # Define the kernels
-    kernels = [
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=X_train_.shape[1])),
-        gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
-    ]
-
-    best_crps = float('inf')
-    best_kernel = None
-
-
-    for kernel in kernels:
-        # Initialize the Gaussian Process model and likelihood
-        likelihood = gpytorch.likelihoods.GaussianLikelihood()
-        model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
-
-        if torch.cuda.is_available():
-            model = model.cuda()
-
-        # Use the adam optimizer
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-        # "Loss" for GPs - the marginal log likelihood
-        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-        # Train the model
-        model.train()
-        likelihood.train()
-
-        train_GP(model,X_train__tensor,y_train__tensor,GP_ITERATIONS,mll,optimizer)
-        
-        # Set the model in evaluation mode
-        model.eval()
-        likelihood.eval()
-
-        # Make predictions on the validation set
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():
-            y_pred = model(X_val_tensor)
-
-        # Calculate CRPS
-        y_pred_np = y_pred.mean.cpu().numpy().flatten()
-        y_pred_std_np = y_pred.stddev.cpu().numpy().flatten()
-
-        # Calculate the CRPS for each prediction
-        crps_values = [crps_gaussian(y_val_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_val_np))]
-
-        # Calculate the mean CRPS
-        mean_crps = np.mean(crps_values)
-
-        # Update the best kernel if the current kernel has a lower CRPS
-        if mean_crps < best_crps:
-            best_crps = mean_crps
-            best_kernel = kernel
-
-
-    # Initialize the Gaussian Process model and likelihood
-    likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood, best_kernel)
-
-    # Use the adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-    # "Loss" for GPs - the marginal log likelihood
-    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-    if torch.cuda.is_available():
-        model = model.cuda()
-
-    # Train the model
-    model.train()
-    likelihood.train()
-    train_GP(model,X_train_tensor,y_train_tensor,GP_ITERATIONS,mll,optimizer)
-
-    # Set the model in evaluation mode
-    model.eval()
-    likelihood.eval()
-
-    # Make predictions on the validation set
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        y_pred = model(X_test_tensor)
-
-    # Calculate CRPS
-    y_pred_np = y_pred.mean.cpu().numpy().flatten()
-    y_pred_std_np = y_pred.stddev.cpu().numpy().flatten()
-
-    # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_test_np[i], mu=y_pred_np[i], sig=y_pred_std_np[i]) for i in range(len(y_test_np))]
-
-    # Calculate the mean CRPS
-    CRPS_GP = np.mean(crps_values)
-
-    # Update the best kernel if the current kernel has a lower CRPS
-    print('CRPS_GP: ', CRPS_GP)
-
-
-    # #### MLP
+    # Define d_out and d_in
     d_out = 1  
     d_in=X_train_.shape[1]
 
+    # #### MLP
     def MLP_opt(trial):
 
         torch.manual_seed(seed)
@@ -350,9 +279,6 @@ for task_id in benchmark_suite.tasks[1:]:
     print("CRPS MLP: ", crps_MLP)
 
     # #### ResNet
-    d_out = 1  
-    d_in=X_train_.shape[1]
-
     def ResNet_opt(trial):
 
         torch.manual_seed(seed)
@@ -452,11 +378,8 @@ for task_id in benchmark_suite.tasks[1:]:
     crps_ResNet = np.mean(crps_values)
 
     print("CRPS ResNet: ", crps_ResNet)
-    # #### FFTransformer
-
-    d_out = 1  
-    d_in=X_train_.shape[1]
-
+    
+    #### FFTransformer
     def FTTrans_opt(trial):
 
         torch.manual_seed(seed)
@@ -568,7 +491,7 @@ for task_id in benchmark_suite.tasks[1:]:
 
     print("CRPS FTTrans: ", crps_FTTrans)
 
-    # #### Boosted trees, random forest, engression, linear regression
+    #### Boosted trees, random forest, engression, linear regression
     # Create lgb dataset
     dtrain_ = lgb.Dataset(torch.tensor(X_train_.values, dtype=torch.float32).clone().detach(), label=y_train_.values)
 
@@ -579,6 +502,7 @@ for task_id in benchmark_suite.tasks[1:]:
             'n_estimators': trial.suggest_int('n_estimators', 100, 500),
             'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
             'max_depth': trial.suggest_int('max_depth', 1, 30),
+            'num_leaves': 2**10,
             'min_child_samples': trial.suggest_int('min_child_samples', 10, 100),
         }
         opt_params = params.copy()
@@ -609,7 +533,7 @@ for task_id in benchmark_suite.tasks[1:]:
     quantiles=list(np.random.uniform(0,1,N_SAMPLES))
     def rf(trial):
         params = {'num_trees': trial.suggest_int('num_trees', 100, 500),
-            'mtry': trial.suggest_int('mtry', 1, 30),
+            'mtry': trial.suggest_int('mtry', 0, d_in),
             'min_node_size': trial.suggest_int('min_node_size', 10, 100)}
         
         drf_model = drf(**params, seed=seed)
@@ -659,11 +583,12 @@ for task_id in benchmark_suite.tasks[1:]:
 
     dtrain = lgb.Dataset(torch.tensor(X_train.values, dtype=torch.float32).clone().detach(), label=y_train.values)
     opt_params = study_boost.best_params.copy()
+    opt_params['num_leaves']=2**10
     n_rounds = opt_params["n_estimators"]
     del opt_params["n_estimators"]
     opt_params['feature_pre_filter']=False
     # Use LightGBMLossGuideRegressor for distributional prediction
-    boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="nll"))
+    boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="crps"))
     boosted_tree_model.train(opt_params, dtrain, num_boost_round=n_rounds)
     # Predict both the mean and standard deviation
     pred_params=boosted_tree_model.predict(X_test, pred_type="parameters")
@@ -708,10 +633,18 @@ for task_id in benchmark_suite.tasks[1:]:
     crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i].cpu()).reshape(-1,)) for i in range(len(y_test_np))]
     CRPS_engression=np.mean(crps_values)
 
+    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    # Calculate the standard deviation of the residuals
+    std_dev = np.std(y_test - constant_prediction)
+    # Calculate the CRPS for each prediction
+    crps_values = [crps_gaussian(y_test_np[i], mu=constant_prediction[i], sig=std_dev) for i in range(len(y_test_np))]
+    CRPS_constant = np.mean(crps_values)
+
     print("CRPS linear regression: ",CRPS_linreg)
     print("CRPS boosted trees", CRPS_boosted)
     print("CRPS random forest", CRPS_rf)
     print("CRPS engression", CRPS_engression)
+    print("CRPS constant", CRPS_constant)
 
     #### GAM model
     def gam_model(trial):
@@ -754,7 +687,7 @@ for task_id in benchmark_suite.tasks[1:]:
     crps_gam = np.mean(crps_gam)
     print("CRPS GAM: ", crps_gam)
 
-    crps_results = {'GP': CRPS_GP.item(), 'MLP': crps_MLP.item(), 'ResNet': crps_ResNet.item(), 'FTTrans': crps_FTTrans.item(), 'boosted_trees': CRPS_boosted, 'drf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression.item(), 'GAM': crps_gam}
+    crps_results = {'constant': CRPS_constant, 'MLP': crps_MLP.item(), 'ResNet': crps_ResNet.item(), 'FTTrans': crps_FTTrans.item(), 'boosted_trees': CRPS_boosted, 'drf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression.item(), 'GAM': crps_gam}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
