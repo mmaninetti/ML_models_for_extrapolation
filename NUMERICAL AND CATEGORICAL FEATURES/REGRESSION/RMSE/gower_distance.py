@@ -124,17 +124,21 @@ for task_id in benchmark_suite.tasks:
     y_train_ = y_train.loc[close_index_train]
     y_val = y_train.loc[far_index_train]
 
-        # Standardize the data
-    mean_X_train_ = np.mean(X_train_, axis=0)
-    std_X_train_ = np.std(X_train_, axis=0)
-    X_train__scaled = (X_train_ - mean_X_train_) / std_X_train_
-    X_val_scaled = (X_val - mean_X_train_) / std_X_train_
+    # Standardize the data for non-dummy variables
+    non_dummy_cols = X.select_dtypes(exclude=['uint8']).columns
+    mean_X_train_ = np.mean(X_train_[non_dummy_cols], axis=0)
+    std_X_train_ = np.std(X_train_[non_dummy_cols], axis=0)
+    X_train__scaled = X_train_.copy()
+    X_train__scaled[non_dummy_cols] = (X_train_[non_dummy_cols] - mean_X_train_) / std_X_train_
+    X_val_scaled = X_val.copy()
+    X_val_scaled[non_dummy_cols] = (X_val[non_dummy_cols] - mean_X_train_) / std_X_train_
 
-    mean_X_train = np.mean(X_train, axis=0)
-    std_X_train = np.std(X_train, axis=0)
-    X_train_scaled = (X_train - mean_X_train) / std_X_train
-    X_test_scaled = (X_test - mean_X_train) / std_X_train
-
+    mean_X_train = np.mean(X_train[non_dummy_cols], axis=0)
+    std_X_train = np.std(X_train[non_dummy_cols], axis=0)
+    X_train_scaled = X_train.copy()
+    X_train_scaled[non_dummy_cols] = (X_train[non_dummy_cols] - mean_X_train) / std_X_train
+    X_test_scaled = X_test.copy()
+    X_test_scaled[non_dummy_cols] = (X_test[non_dummy_cols] - mean_X_train) / std_X_train
 
     # Convert data to PyTorch tensors
     X_train__tensor = torch.tensor(X_train__scaled.values, dtype=torch.float32)
