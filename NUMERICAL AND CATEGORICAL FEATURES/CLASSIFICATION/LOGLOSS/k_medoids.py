@@ -50,6 +50,14 @@ dataset = task.get_dataset()
 X, y, categorical_indicator, attribute_names = dataset.get_data(
         dataset_format="dataframe", target=dataset.default_target_attribute)
 
+# Find features with absolute correlation > 0.9
+corr_matrix = X.corr().abs()
+upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
+
+# Drop one of the highly correlated features
+X = X.drop(high_corr_features, axis=1)
+
 # Transform y to int type, to then be able to apply BCEWithLogitsLoss
 # Create a label encoder
 le = LabelEncoder()

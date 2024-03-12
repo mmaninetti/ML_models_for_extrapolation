@@ -26,7 +26,8 @@ from torch import nn
 from torch.optim import Adam
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
+from torch.utils.data import TensorDataset, DataLoader
 
 
 #SUITE_ID = 336 # Regression on numerical features
@@ -35,632 +36,594 @@ SUITE_ID = 337 # Classification on numerical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-task_id=361055
+#task_id=361055
+for task_id in benchmark_suite.tasks:
 
-# Create the checkpoint directory if it doesn't exist
-os.makedirs('CHECKPOINTS/CLUSTERING', exist_ok=True)
-CHECKPOINT_PATH = f'CHECKPOINTS/CLUSTERING/task_{task_id}.pt'
+    # Create the checkpoint directory if it doesn't exist
+    os.makedirs('CHECKPOINTS/CLUSTERING', exist_ok=True)
+    CHECKPOINT_PATH = f'CHECKPOINTS/CLUSTERING/task_{task_id}.pt'
 
-print(f"Task {task_id}")
+    print(f"Task {task_id}")
 
-task = openml.tasks.get_task(task_id)  # download the OpenML task
-dataset = task.get_dataset()
+    task = openml.tasks.get_task(task_id)  # download the OpenML task
+    dataset = task.get_dataset()
 
-X, y, categorical_indicator, attribute_names = dataset.get_data(
-        dataset_format="dataframe", target=dataset.default_target_attribute)
-
-# Transform y to int type, to then be able to apply BCEWithLogitsLoss
-# Create a label encoder
-le = LabelEncoder()
-# Fit the label encoder and transform y to get binary labels
-y_encoded = le.fit_transform(y)
-# Convert the result back to a pandas Series
-y = pd.Series(y_encoded, index=y.index)
-
-# Set the random seed for reproducibility
-N_TRIALS=100
-N_SAMPLES=100
-PATIENCE=40
-N_EPOCHS=1000
-GP_ITERATIONS=1000
-seed=10
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-random.seed(seed)
-
-
-# New new implementation
-N_CLUSTERS=20
-# calculate the mean and covariance matrix of the dataset
-mean = np.mean(X, axis=0)
-cov = np.cov(X.T)
-scaler = StandardScaler()
-
-# transform data to compute the clusters
-X_scaled = scaler.fit_transform(X)
-
-kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_scaled)
-distances=[]
-mahalanobis_dist=[]
-counts=[]
-ideal_len=len(kmeans.labels_)/5
-for i in np.arange(N_CLUSTERS):
-    distances.append(np.abs(np.sum(kmeans.labels_==i)-ideal_len))
-    counts.append(np.sum(kmeans.labels_==i))
-    mean_k= np.mean(X.loc[kmeans.labels_==i,:], axis=0)
-    mahalanobis_dist.append(mahalanobis(mean_k, mean, np.linalg.inv(cov)))
-
-dist_df=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist, 'count': counts}, index=np.arange(N_CLUSTERS))
-dist_df=dist_df.sort_values('mahalanobis_dist', ascending=False)
-dist_df['cumulative_count']=dist_df['count'].cumsum()
-dist_df['abs_diff']=np.abs(dist_df['cumulative_count']-ideal_len)
-
-final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
-labelss=dist_df.index[0:final+1].to_list()
-labels=pd.Series(kmeans.labels_).isin(labelss)
-labels.index=X.index
-close_index=labels.index[np.where(labels==False)[0]]
-far_index=labels.index[np.where(labels==True)[0]]
-
-X_train = X.loc[close_index,:]
-X_test = X.loc[far_index,:]
-y_train = y.loc[close_index]
-y_test = y.loc[far_index]
-
-# calculate the mean and covariance matrix of the dataset
-mean_ = np.mean(X_train, axis=0)
-cov_ = np.cov(X_train.T)
-scaler_ = StandardScaler()
-
-# transform data to compute the clusters
-X_train_scaled = scaler_.fit_transform(X_train)
-
-kmeans_ = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_train_scaled)
-distances_=[]
-counts_=[]
-mahalanobis_dist_=[]
-ideal_len_=len(kmeans_.labels_)/5
-for i in np.arange(N_CLUSTERS):
-    distances_.append(np.abs(np.sum(kmeans_.labels_==i)-ideal_len_))
-    counts_.append(np.sum(kmeans_.labels_==i))
-    mean_k_= np.mean(X_train.loc[kmeans_.labels_==i,:], axis=0)
-    mahalanobis_dist_.append(mahalanobis(mean_k_, mean_, np.linalg.inv(cov_)))
-
-dist_df_=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist_, 'count': counts_}, index=np.arange(N_CLUSTERS))
-dist_df_=dist_df_.sort_values('mahalanobis_dist', ascending=False)
-dist_df_['cumulative_count']=dist_df_['count'].cumsum()
-dist_df_['abs_diff']=np.abs(dist_df_['cumulative_count']-ideal_len_)
-
-final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
-labelss_=dist_df_.index[0:final_+1].to_list()
-labels_=pd.Series(kmeans_.labels_).isin(labelss_)
-labels_.index=X_train.index
-close_index_=labels_.index[np.where(labels_==False)[0]]
-far_index_=labels_.index[np.where(labels_==True)[0]]
-
-X_train_ = X_train.loc[close_index_,:]
-X_val = X_train.loc[far_index_,:]
-y_train_ = y_train.loc[close_index_]
-y_val = y_train.loc[far_index_]
-
-
-# Convert data to PyTorch tensors
-X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
-y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
-X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
-y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
-y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
-X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
-y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
-
-# Convert to use GPU if available
-if torch.cuda.is_available():
-    X_train__tensor = X_train__tensor.cuda()
-    y_train__tensor = y_train__tensor.cuda()
-    X_train_tensor = X_train_tensor.cuda()
-    y_train_tensor = y_train_tensor.cuda()
-    X_val_tensor = X_val_tensor.cuda()
-    y_val_tensor = y_val_tensor.cuda()
-    X_test_tensor = X_test_tensor.cuda()
-    y_test_tensor = y_test_tensor.cuda()
-
-# Create flattened versions of the data
-y_val_np = y_val.values.flatten()
-y_test_np = y_test.values.flatten()
-#### Gaussian process
-# Define your model
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood, kernel):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Define the learning params
-training_iterations = GP_ITERATIONS
-
-# Define the kernels
-kernels = [
-    gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=0.5, ard_num_dims=X_train_.shape[1])),
-    gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=1.5, ard_num_dims=X_train_.shape[1])),
-    gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=X_train_.shape[1])),
-    gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(ard_num_dims=X_train_.shape[1])),
-]
-
-best_accuracy = 0
-best_kernel = None
-
-
-for kernel in kernels:
-    # Initialize the Gaussian Process model and likelihood
-    likelihood = gpytorch.likelihoods.BernoulliLikelihood()
-    model = ExactGPModel(X_train__tensor, y_train__tensor, likelihood, kernel)
-
-    if torch.cuda.is_available():
-        model = model.cuda()
-
-    # Use the adam optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-    # "Loss" for GPs - the marginal log likelihood
-    mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=len(y_train__tensor))
-
-    # Train the model
-    train_GP(model,X_train__tensor,y_train__tensor,training_iterations,mll,optimizer)
+    X, y, categorical_indicator, attribute_names = dataset.get_data(
+            dataset_format="dataframe", target=dataset.default_target_attribute)
     
-    # Set the model in evaluation mode
-    model.eval()
-    likelihood.eval()
+    # Find features with absolute correlation > 0.9
+    corr_matrix = X.corr().abs()
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
 
-    # Make predictions on the validation set
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        output = model(X_val_tensor)
-        preds = likelihood(output)
-
-    # Calculate accuracy
-    accuracy = accuracy_score(y_val_tensor, preds.mean.ge(0.5).float())
-
-    # Update the best kernel if the current kernel has a higher accuracy
-    if accuracy > best_accuracy:
-        best_accuracy = accuracy
-        best_kernel = kernel
-
-# Set the random seed for reproducibility
-
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = best_kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-
-# Define the learning params
-training_iterations = GP_ITERATIONS
-
-# Initialize the Gaussian Process model and likelihood
-likelihood = gpytorch.likelihoods.BernoulliLikelihood()
-model = ExactGPModel(X_train_tensor, y_train_tensor, likelihood)
-
-# Use the adam optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-# "Loss" for GPs - the marginal log likelihood
-mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=len(y_train_tensor))
-
-if torch.cuda.is_available():
-    model = model.cuda()
-
-# Train the model
-train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer)
-
-# Set the model in evaluation mode
-model.eval()
-likelihood.eval()
-
-# Make predictions on the validation set
-with torch.no_grad(), gpytorch.settings.fast_pred_var():
-    output = model(X_test_tensor)
-    preds = likelihood(output)
-
-# Calculate accuracy
-accuracy_GP = accuracy_score(y_test_tensor, preds.mean.ge(0.5).float())
-print("Accuracy GP: ", accuracy_GP)
+    # Drop one of the highly correlated features
+    X = X.drop(high_corr_features, axis=1)
 
 
-# #### MLP
-d_out = 1  
-d_in=X_train_.shape[1]
+    # Transform y to int type, to then be able to apply BCEWithLogitsLoss
+    # Create a label encoder
+    le = LabelEncoder()
+    # Fit the label encoder and transform y to get binary labels
+    y_encoded = le.fit_transform(y)
+    # Convert the result back to a pandas Series
+    y = pd.Series(y_encoded, index=y.index)
 
-def MLP_opt(trial):
-
-    torch.manual_seed(seed)
+    # Set the random seed for reproducibility
+    N_TRIALS=100
+    N_SAMPLES=100
+    PATIENCE=40
+    N_EPOCHS=1000
+    GP_ITERATIONS=1000
+    BATCH_SIZE=1024
+    seed=10
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
 
-    n_blocks = trial.suggest_int("n_blocks", 1, 5)
-    d_block = trial.suggest_int("d_block", 10, 500)
-    dropout = trial.suggest_float("dropout", 0, 1)
+
+    # New new implementation
+    N_CLUSTERS=20
+    # calculate the mean and covariance matrix of the dataset
+    mean = np.mean(X, axis=0)
+    cov = np.cov(X.T)
+    scaler = StandardScaler()
+
+    # transform data to compute the clusters
+    X_scaled = scaler.fit_transform(X)
+
+    kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_scaled)
+    distances=[]
+    mahalanobis_dist=[]
+    counts=[]
+    ideal_len=len(kmeans.labels_)/5
+    for i in np.arange(N_CLUSTERS):
+        distances.append(np.abs(np.sum(kmeans.labels_==i)-ideal_len))
+        counts.append(np.sum(kmeans.labels_==i))
+        mean_k= np.mean(X.loc[kmeans.labels_==i,:], axis=0)
+        mahalanobis_dist.append(mahalanobis(mean_k, mean, np.linalg.inv(cov)))
+
+    dist_df=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist, 'count': counts}, index=np.arange(N_CLUSTERS))
+    dist_df=dist_df.sort_values('mahalanobis_dist', ascending=False)
+    dist_df['cumulative_count']=dist_df['count'].cumsum()
+    dist_df['abs_diff']=np.abs(dist_df['cumulative_count']-ideal_len)
+
+    final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
+    labelss=dist_df.index[0:final+1].to_list()
+    labels=pd.Series(kmeans.labels_).isin(labelss)
+    labels.index=X.index
+    close_index=labels.index[np.where(labels==False)[0]]
+    far_index=labels.index[np.where(labels==True)[0]]
+
+    X_train = X.loc[close_index,:]
+    X_test = X.loc[far_index,:]
+    y_train = y.loc[close_index]
+    y_test = y.loc[far_index]
+
+    # calculate the mean and covariance matrix of the dataset
+    mean_ = np.mean(X_train, axis=0)
+    cov_ = np.cov(X_train.T)
+    scaler_ = StandardScaler()
+
+    # transform data to compute the clusters
+    X_train_scaled = scaler_.fit_transform(X_train)
+
+    kmeans_ = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_train_scaled)
+    distances_=[]
+    counts_=[]
+    mahalanobis_dist_=[]
+    ideal_len_=len(kmeans_.labels_)/5
+    for i in np.arange(N_CLUSTERS):
+        distances_.append(np.abs(np.sum(kmeans_.labels_==i)-ideal_len_))
+        counts_.append(np.sum(kmeans_.labels_==i))
+        mean_k_= np.mean(X_train.loc[kmeans_.labels_==i,:], axis=0)
+        mahalanobis_dist_.append(mahalanobis(mean_k_, mean_, np.linalg.inv(cov_)))
+
+    dist_df_=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist_, 'count': counts_}, index=np.arange(N_CLUSTERS))
+    dist_df_=dist_df_.sort_values('mahalanobis_dist', ascending=False)
+    dist_df_['cumulative_count']=dist_df_['count'].cumsum()
+    dist_df_['abs_diff']=np.abs(dist_df_['cumulative_count']-ideal_len_)
+
+    final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
+    labelss_=dist_df_.index[0:final_+1].to_list()
+    labels_=pd.Series(kmeans_.labels_).isin(labelss_)
+    labels_.index=X_train.index
+    close_index_=labels_.index[np.where(labels_==False)[0]]
+    far_index_=labels_.index[np.where(labels_==True)[0]]
+
+    X_train_ = X_train.loc[close_index_,:]
+    X_val = X_train.loc[far_index_,:]
+    y_train_ = y_train.loc[close_index_]
+    y_val = y_train.loc[far_index_]
+
+
+    # Standardize the data
+    mean_X_train_ = np.mean(X_train_, axis=0)
+    std_X_train_ = np.std(X_train_, axis=0)
+    X_train__scaled = (X_train_ - mean_X_train_) / std_X_train_
+    X_val_scaled = (X_val - mean_X_train_) / std_X_train_
+
+    mean_X_train = np.mean(X_train, axis=0)
+    std_X_train = np.std(X_train, axis=0)
+    X_train_scaled = (X_train - mean_X_train) / std_X_train
+    X_test_scaled = (X_test - mean_X_train) / std_X_train
+
+
+    # Convert data to PyTorch tensors
+    X_train__tensor = torch.tensor(X_train__scaled.values, dtype=torch.float32)
+    y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train_scaled.values, dtype=torch.float32)
+    y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val_scaled.values, dtype=torch.float32)
+    y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test_scaled.values, dtype=torch.float32)
+    y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
+
+    # Convert to use GPU if available
+    if torch.cuda.is_available():
+        X_train__tensor = X_train__tensor.cuda()
+        y_train__tensor = y_train__tensor.cuda()
+        X_train_tensor = X_train_tensor.cuda()
+        y_train_tensor = y_train_tensor.cuda()
+        X_val_tensor = X_val_tensor.cuda()
+        y_val_tensor = y_val_tensor.cuda()
+        X_test_tensor = X_test_tensor.cuda()
+        y_test_tensor = y_test_tensor.cuda()
+
+    # Create flattened versions of the data
+    y_val_np = y_val.values.flatten()
+    y_test_np = y_test.values.flatten()
+
+    # Create TensorDatasets for training and validation sets
+    train__dataset = TensorDataset(X_train__tensor, y_train__tensor)
+    train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
+    val_dataset = TensorDataset(X_val_tensor, y_val_tensor)
+    test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
+
+    # Create DataLoaders for training and validation sets
+    train__loader = DataLoader(train__dataset, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    d_out = 1  
+    d_in=X_train_.shape[1]
+
+    #### MLP
+    def MLP_opt(trial):
+
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+
+        n_blocks = trial.suggest_int("n_blocks", 1, 5)
+        d_block = trial.suggest_int("d_block", 10, 500)
+        dropout = trial.suggest_float("dropout", 0, 1)
+
+        MLP_model = MLP(
+        d_in=d_in,
+        d_out=1,  # For binary classification, output dimension should be 1
+        n_blocks=n_blocks,
+        d_block=d_block,
+        dropout=dropout,
+        )
+        n_epochs=N_EPOCHS
+        learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
+        weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+        optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+
+        if torch.cuda.is_available():
+            MLP_model = MLP_model.cuda()
+        
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train(MLP_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
+        n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = MLP_model(batch_X).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+        y_val_hat_MLP = torch.sigmoid(torch.tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
+        accuracy_MLP = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_MLP.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+
+        return accuracy_MLP
+
+    sampler_MLP = optuna.samplers.TPESampler(seed=seed)
+    study_MLP = optuna.create_study(sampler=sampler_MLP, direction='maximize')  # We want to maximize accuracy
+    study_MLP.optimize(MLP_opt, n_trials=N_TRIALS)
 
     MLP_model = MLP(
-    d_in=d_in,
-    d_out=1,  # For binary classification, output dimension should be 1
-    n_blocks=n_blocks,
-    d_block=d_block,
-    dropout=dropout,
-    )
-    n_epochs=N_EPOCHS
-    learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
-    weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
-    optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-    criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-    loss_Adam=[]
+        d_in=d_in,
+        d_out=1,  # For binary classification, output dimension should be 1
+        n_blocks=study_MLP.best_params['n_blocks'],
+        d_block=study_MLP.best_params['d_block'],
+        dropout=study_MLP.best_params['dropout'],
+        )
 
     if torch.cuda.is_available():
         MLP_model = MLP_model.cuda()
-    
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(MLP_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+        
+    n_epochs=study_MLP.best_params['n_epochs']
+    learning_rate=study_MLP.best_params['learning_rate']
+    weight_decay=study_MLP.best_params['weight_decay']
+    optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+
+    train_no_early_stopping(MLP_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
-    y_val_hat_MLP = torch.sigmoid(MLP_model(X_val_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_MLP = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_MLP.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in test_loader:
+            batch_predictions = MLP_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
 
-    return accuracy_MLP
+    y_test_hat_MLP = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))
+    accuracy_MLP = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_MLP.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    print("Accuracy MLP: ", accuracy_MLP)
+    del MLP_model, optimizer, criterion, y_test_hat_MLP, predictions
 
-sampler_MLP = optuna.samplers.TPESampler(seed=seed)
-study_MLP = optuna.create_study(sampler=sampler_MLP, direction='maximize')  # We want to maximize accuracy
-study_MLP.optimize(MLP_opt, n_trials=N_TRIALS)
+    # #### ResNet
+    def ResNet_opt(trial):
 
-MLP_model = MLP(
-    d_in=d_in,
-    d_out=1,  # For binary classification, output dimension should be 1
-    n_blocks=study_MLP.best_params['n_blocks'],
-    d_block=study_MLP.best_params['d_block'],
-    dropout=study_MLP.best_params['dropout'],
-    )
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
 
-if torch.cuda.is_available():
-    MLP_model = MLP_model.cuda()
-    
-n_epochs=study_MLP.best_params['n_epochs']
-learning_rate=study_MLP.best_params['learning_rate']
-weight_decay=study_MLP.best_params['weight_decay']
-optimizer=torch.optim.Adam(MLP_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-loss_Adam=[]
+        n_blocks = trial.suggest_int("n_blocks", 1, 5)
+        d_block = trial.suggest_int("d_block", 10, 500)
+        dropout1 = trial.suggest_float("dropout1", 0, 1)
+        dropout2 = trial.suggest_float("dropout2", 0, 1)
+        d_hidden_multiplier=trial.suggest_float("d_hidden_multiplier", 0.5, 3)
 
-train_no_early_stopping(MLP_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+        ResNet_model = ResNet(
+        d_in=d_in,
+        d_out=1,  # For binary classification, output dimension should be 1
+        n_blocks=n_blocks,
+        d_block=d_block,
+        d_hidden=None,
+        d_hidden_multiplier=d_hidden_multiplier,
+        dropout1=dropout1,
+        dropout2=dropout2,
+        )
+        if torch.cuda.is_available():
+            ResNet_model = ResNet_model.cuda()
+        n_epochs=N_EPOCHS
+        learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
+        weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+        optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
 
-# Point prediction
-y_test_hat_MLP = torch.sigmoid(MLP_model(X_test_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_MLP = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_MLP.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy MLP: ", accuracy_MLP)
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train(ResNet_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
+        n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
-# #### ResNet
-d_out = 1  
-d_in=X_train_.shape[1]
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = ResNet_model(batch_X).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
 
-def ResNet_opt(trial):
+        y_val_hat_ResNet = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
+        accuracy_ResNet = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_ResNet.ge(0.5).float().cpu().numpy())  # Calculate accuracy
 
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
+        return accuracy_ResNet
 
-    n_blocks = trial.suggest_int("n_blocks", 1, 5)
-    d_block = trial.suggest_int("d_block", 10, 500)
-    dropout1 = trial.suggest_float("dropout1", 0, 1)
-    dropout2 = trial.suggest_float("dropout2", 0, 1)
-    d_hidden_multiplier=trial.suggest_float("d_hidden_multiplier", 0.5, 3)
+    sampler_ResNet = optuna.samplers.TPESampler(seed=seed)
+    study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='maximize')  # We want to maximize accuracy
+    study_ResNet.optimize(ResNet_opt, n_trials=N_TRIALS)
 
     ResNet_model = ResNet(
-    d_in=d_in,
-    d_out=1,  # For binary classification, output dimension should be 1
-    n_blocks=n_blocks,
-    d_block=d_block,
-    d_hidden=None,
-    d_hidden_multiplier=d_hidden_multiplier,
-    dropout1=dropout1,
-    dropout2=dropout2,
-    )
+        d_in=d_in,
+        d_out=1,  # For binary classification, output dimension should be 1
+        n_blocks=study_ResNet.best_params['n_blocks'],
+        d_block=study_ResNet.best_params['d_block'],
+        d_hidden=None,
+        d_hidden_multiplier=study_ResNet.best_params['d_hidden_multiplier'],
+        dropout1=study_ResNet.best_params['dropout1'],
+        dropout2=study_ResNet.best_params['dropout2'],
+        )
+
     if torch.cuda.is_available():
         ResNet_model = ResNet_model.cuda()
-    n_epochs=N_EPOCHS
-    learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
-    weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+
+    n_epochs=study_ResNet.best_params['n_epochs']
+    learning_rate=study_ResNet.best_params['learning_rate']
+    weight_decay=study_ResNet.best_params['weight_decay']
     optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-    loss_Adam=[]
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train(ResNet_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    train_no_early_stopping(ResNet_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
-    y_val_hat_ResNet = torch.sigmoid(ResNet_model(X_val_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_ResNet = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_ResNet.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in test_loader:
+            batch_predictions = ResNet_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
 
-    return accuracy_ResNet
+    y_test_hat_ResNet = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
+    accuracy_ResNet = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_ResNet.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    print("Accuracy ResNet: ", accuracy_ResNet)
+    del ResNet_model, optimizer, criterion, y_test_hat_ResNet, predictions
 
-sampler_ResNet = optuna.samplers.TPESampler(seed=seed)
-study_ResNet = optuna.create_study(sampler=sampler_ResNet, direction='maximize')  # We want to maximize accuracy
-study_ResNet.optimize(ResNet_opt, n_trials=N_TRIALS)
+    #### FFTransformer
+    def FTTrans_opt(trial):
 
-ResNet_model = ResNet(
-    d_in=d_in,
-    d_out=1,  # For binary classification, output dimension should be 1
-    n_blocks=study_ResNet.best_params['n_blocks'],
-    d_block=study_ResNet.best_params['d_block'],
-    d_hidden=None,
-    d_hidden_multiplier=study_ResNet.best_params['d_hidden_multiplier'],
-    dropout1=study_ResNet.best_params['dropout1'],
-    dropout2=study_ResNet.best_params['dropout2'],
-    )
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
 
-if torch.cuda.is_available():
-    ResNet_model = ResNet_model.cuda()
+        n_blocks = trial.suggest_int("n_blocks", 1, 5)
+        d_block_multiplier = trial.suggest_int("d_block_multiplier", 1, 25)
+        attention_n_heads = trial.suggest_int("attention_n_heads", 1, 20)
+        attention_dropout = trial.suggest_float("attention_dropout", 0, 1)
+        ffn_d_hidden_multiplier=trial.suggest_float("ffn_d_hidden_multiplier", 0.5, 3)
+        ffn_dropout = trial.suggest_float("ffn_dropout", 0, 1)
+        residual_dropout = trial.suggest_float("residual_dropout", 0, 1)
 
-n_epochs=study_ResNet.best_params['n_epochs']
-learning_rate=study_ResNet.best_params['learning_rate']
-weight_decay=study_ResNet.best_params['weight_decay']
-optimizer=torch.optim.Adam(ResNet_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-loss_Adam=[]
+        FTTrans_model = FTTransformer(
+        n_cont_features=d_in,
+        cat_cardinalities=[],
+        d_out=1,  # For binary classification, output dimension should be 1
+        n_blocks=n_blocks,
+        d_block=d_block_multiplier*attention_n_heads,
+        attention_n_heads=attention_n_heads,
+        attention_dropout=attention_dropout,
+        ffn_d_hidden=None,
+        ffn_d_hidden_multiplier=ffn_d_hidden_multiplier,
+        ffn_dropout=ffn_dropout,
+        residual_dropout=residual_dropout,
+        )
 
-train_no_early_stopping(ResNet_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
+        if torch.cuda.is_available():
+            FTTrans_model = FTTrans_model.cuda()
 
-# Point prediction
-y_test_hat_ResNet = torch.sigmoid(ResNet_model(X_test_tensor).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_ResNet = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_ResNet.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy ResNet: ", accuracy_ResNet)
+        n_epochs=N_EPOCHS
+        learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
+        weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+        optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
 
-# #### FFTransformer
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
+        n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
 
-d_out = 1  
-d_in=X_train_.shape[1]
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
 
-def FTTrans_opt(trial):
+        y_val_hat_FTTrans = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
+        accuracy_FTTrans = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
 
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
+        return accuracy_FTTrans
 
-    n_blocks = trial.suggest_int("n_blocks", 1, 5)
-    d_block_multiplier = trial.suggest_int("d_block_multiplier", 1, 25)
-    attention_n_heads = trial.suggest_int("attention_n_heads", 1, 20)
-    attention_dropout = trial.suggest_float("attention_dropout", 0, 1)
-    ffn_d_hidden_multiplier=trial.suggest_float("ffn_d_hidden_multiplier", 0.5, 3)
-    ffn_dropout = trial.suggest_float("ffn_dropout", 0, 1)
-    residual_dropout = trial.suggest_float("residual_dropout", 0, 1)
+    sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
+    study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='maximize')  # We want to maximize accuracy
+    study_FTTrans.optimize(FTTrans_opt, n_trials=N_TRIALS)
+
 
     FTTrans_model = FTTransformer(
-    n_cont_features=d_in,
-    cat_cardinalities=[],
-    d_out=1,  # For binary classification, output dimension should be 1
-    n_blocks=n_blocks,
-    d_block=d_block_multiplier*attention_n_heads,
-    attention_n_heads=attention_n_heads,
-    attention_dropout=attention_dropout,
-    ffn_d_hidden=None,
-    ffn_d_hidden_multiplier=ffn_d_hidden_multiplier,
-    ffn_dropout=ffn_dropout,
-    residual_dropout=residual_dropout,
-    )
+        n_cont_features=d_in,
+        cat_cardinalities=[],
+        d_out=1,  # For binary classification, output dimension should be 1
+        n_blocks=study_FTTrans.best_params['n_blocks'],
+        d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
+        attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
+        attention_dropout=study_FTTrans.best_params['attention_dropout'],
+        ffn_d_hidden=None,
+        ffn_d_hidden_multiplier=study_FTTrans.best_params['ffn_d_hidden_multiplier'],
+        ffn_dropout=study_FTTrans.best_params['ffn_dropout'],
+        residual_dropout=study_FTTrans.best_params['residual_dropout'],
+        )
 
     if torch.cuda.is_available():
         FTTrans_model = FTTrans_model.cuda()
 
-    n_epochs=N_EPOCHS
-    learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
-    weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+    n_epochs=study_FTTrans.best_params['n_epochs']
+    learning_rate=study_FTTrans.best_params['learning_rate']
+    weight_decay=study_FTTrans.best_params['weight_decay']
     optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
     loss_Adam=[]
 
-    early_stopping = EarlyStopping(patience=PATIENCE, verbose=False)
-    n_epochs=train_trans(FTTrans_model, criterion, loss_Adam, optimizer, n_epochs, X_train__tensor, y_train__tensor, X_val_tensor, y_val_tensor, early_stopping)
-    n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+    train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
 
     # Point prediction
-    y_val_hat_FTTrans = torch.sigmoid(FTTrans_model(X_val_tensor, None).reshape(-1,))  # Apply sigmoid to get probabilities
-    accuracy_FTTrans = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in test_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
 
-    return accuracy_FTTrans
+    y_test_hat_FTTrans = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
+    accuracy_FTTrans = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
+    print("Accuracy FTTrans: ", accuracy_FTTrans)
+    del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
 
-sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
-study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='maximize')  # We want to maximize accuracy
-study_FTTrans.optimize(FTTrans_opt, n_trials=N_TRIALS)
+    #### Boosted trees, random forest, engression, linear regression
+    def boosted(trial):
+
+        params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
+                'n_estimators': trial.suggest_int('n_estimators', 100, 500),
+                'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
+                'max_depth': trial.suggest_int('max_depth', 1, 30),
+                'num_leaves': 2**10,
+                'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
+        
+        boosted_tree_model=lgbm.LGBMClassifier(**params)
+        boosted_tree_model.fit(X_train_, y_train_)
+        y_val_hat_boost=boosted_tree_model.predict(X_val)
+        print(y_val_hat_boost)
+        accuracy_boost=accuracy_score(y_val, y_val_hat_boost)
+
+        return accuracy_boost
+
+    sampler_boost = optuna.samplers.TPESampler(seed=seed)
+    study_boost = optuna.create_study(sampler=sampler_boost, direction='maximize')
+    study_boost.optimize(boosted, n_trials=N_TRIALS)
+    params=study_boost.best_params
+    params['num_leaves']=2**10
+    boosted_model=lgbm.LGBMClassifier(**params)
+
+    def rf(trial):
+
+        params = {'n_estimators': trial.suggest_int('n_estimators', 100, 500),
+                'max_depth': trial.suggest_int('max_depth', 1, 30),
+                'max_features': trial.suggest_float('max_features', 0, 1),
+                'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100)}
+        
+        rf_model=RandomForestClassifier(**params)
+        rf_model.fit(X_train_, y_train_)
+        y_val_hat_rf=rf_model.predict(X_val)
+        accuracy_rf=accuracy_score(y_val, y_val_hat_rf)
+
+        return accuracy_rf
+
+    sampler_rf = optuna.samplers.TPESampler(seed=seed)
+    study_rf = optuna.create_study(sampler=sampler_rf, direction='maximize')
+    study_rf.optimize(rf, n_trials=N_TRIALS)
+    rf_model=RandomForestClassifier(**study_rf.best_params)
+
+    def engressor_NN(trial):
+
+        params = {'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.01, log=True),
+                'num_epoches': trial.suggest_int('num_epoches', 100, 1000),
+                'num_layer': trial.suggest_int('num_layer', 2, 5),
+                'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),
+                'resblock': trial.suggest_categorical('resblock', [True, False])}
+        params['noise_dim']=params['hidden_dim']
+
+        # Check if CUDA is available and if so, move the tensors and the model to the GPU
+        if torch.cuda.is_available():
+            engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, sigmoid=True, resblock=params['resblock'], device="cuda")
+        else: 
+            engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, sigmoid=True, resblock=params['resblock'])
+        
+        # Generate a sample from the engression model for each data point
+        y_val_hat_engression=engressor_model.predict(X_val_tensor, target="mean")
+        y_val_hat_engression = y_val_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
+
+        accuracy_engression = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_engression.cpu().numpy())  # Calculate accuracy
+
+        return accuracy_engression
+
+    sampler_engression = optuna.samplers.TPESampler(seed=seed)
+    study_engression = optuna.create_study(sampler=sampler_engression, direction='maximize')  # We want to maximize accuracy
+    study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
 
 
-FTTrans_model = FTTransformer(
-    n_cont_features=d_in,
-    cat_cardinalities=[],
-    d_out=1,  # For binary classification, output dimension should be 1
-    n_blocks=study_FTTrans.best_params['n_blocks'],
-    d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
-    attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
-    attention_dropout=study_FTTrans.best_params['attention_dropout'],
-    ffn_d_hidden=None,
-    ffn_d_hidden_multiplier=study_FTTrans.best_params['ffn_d_hidden_multiplier'],
-    ffn_dropout=study_FTTrans.best_params['ffn_dropout'],
-    residual_dropout=study_FTTrans.best_params['residual_dropout'],
-    )
+    # Fit the boosted model and make predictions
+    boosted_model.fit(X_train, y_train)
+    y_test_hat_boosted = boosted_model.predict(X_test)
+    accuracy_boosted = accuracy_score(y_test, y_test_hat_boosted)
 
-if torch.cuda.is_available():
-    FTTrans_model = FTTrans_model.cuda()
+    # Fit the random forest model and make predictions
+    rf_model.fit(X_train, y_train)
+    y_test_hat_rf = rf_model.predict(X_test)
+    accuracy_rf = accuracy_score(y_test, y_test_hat_rf)
 
-n_epochs=study_FTTrans.best_params['n_epochs']
-learning_rate=study_FTTrans.best_params['learning_rate']
-weight_decay=study_FTTrans.best_params['weight_decay']
-optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
-loss_Adam=[]
+    # Fit the logistic regression model and make predictions
+    log_reg = LogisticRegression()
+    log_reg.fit(X_train, y_train)
+    y_test_hat_logreg = log_reg.predict(X_test)
+    accuracy_logreg = accuracy_score(y_test, y_test_hat_logreg)
 
-train_trans_no_early_stopping(FTTrans_model,criterion,loss_Adam,optimizer,n_epochs,X_train_tensor,y_train_tensor)
-
-# Point prediction
-y_test_hat_FTTrans = torch.sigmoid(FTTrans_model(X_test_tensor, None).reshape(-1,))  # Apply sigmoid to get probabilities
-accuracy_FTTrans = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
-print("Accuracy FTTrans: ", accuracy_FTTrans)
-
-# #### Boosted trees, random forest, engression, linear regression
-
-def boosted(trial):
-
-    params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
-              'n_estimators': trial.suggest_int('n_estimators', 100, 500),
-              'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
-              'max_depth': trial.suggest_int('max_depth', 1, 30),
-              'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
-    
-    boosted_tree_model=lgbm.LGBMClassifier(**params)
-    boosted_tree_model.fit(X_train_, y_train_)
-    y_val_hat_boost=boosted_tree_model.predict(X_val)
-    accuracy_boost=accuracy_score(y_val, y_val_hat_boost)
-
-    return accuracy_boost
-
-sampler_boost = optuna.samplers.TPESampler(seed=seed)
-study_boost = optuna.create_study(sampler=sampler_boost, direction='maximize')
-study_boost.optimize(boosted, n_trials=N_TRIALS)
-boosted_model=lgbm.LGBMClassifier(**study_boost.best_params)
-
-def rf(trial):
-
-    params = {'n_estimators': trial.suggest_int('n_estimators', 100, 500),
-              'max_depth': trial.suggest_int('max_depth', 1, 30),
-              'max_features': trial.suggest_int('max_features', 1, 30),
-              'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100)}
-    
-    rf_model=RandomForestClassifier(**params)
-    rf_model.fit(X_train_, y_train_)
-    y_val_hat_rf=rf_model.predict(X_val)
-    accuracy_rf=accuracy_score(y_val, y_val_hat_rf)
-
-    return accuracy_rf
-
-sampler_rf = optuna.samplers.TPESampler(seed=seed)
-study_rf = optuna.create_study(sampler=sampler_rf, direction='maximize')
-study_rf.optimize(rf, n_trials=N_TRIALS)
-rf_model=RandomForestClassifier(**study_rf.best_params)
-
-def engressor_NN(trial):
-
-    params = {'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.01, log=True),
-              'num_epoches': trial.suggest_int('num_epoches', 100, 1000),
-              'num_layer': trial.suggest_int('num_layer', 2, 5),
-              'hidden_dim': trial.suggest_int('hidden_dim', 100, 500),
-              'resblock': trial.suggest_categorical('resblock', [True, False])}
+    # Engression model
+    params=study_engression.best_params
     params['noise_dim']=params['hidden_dim']
-
     # Check if CUDA is available and if so, move the tensors and the model to the GPU
     if torch.cuda.is_available():
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'], device="cuda")
+        engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, sigmoid=True, resblock=params['resblock'], device="cuda")
     else: 
-        engressor_model=engression(X_train__tensor, y_train__tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'])
-    
-    # Generate a sample from the engression model for each data point
-    y_val_hat_engression=engressor_model.predict(X_val_tensor, target="mean")
-    y_val_hat_engression = y_val_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
+        engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=BATCH_SIZE, sigmoid=True, resblock=params['resblock'])
+    # Assuming the model outputs probabilities for the two classes
+    y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
+    # Convert the probabilities to class labels
+    y_test_hat_engression = y_test_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
+    accuracy_engression = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate accuracy
 
-    accuracy_engression = accuracy_score(y_val_tensor.cpu().numpy(), y_val_hat_engression.cpu().numpy())  # Calculate accuracy
+    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    constant_prediction = np.where(constant_prediction >= 0.5, 1, 0)
+    accuracy_constant = accuracy_score(y_test, constant_prediction)
 
-    return accuracy_engression
+    print("Accuracy logistic regression: ", accuracy_logreg)
+    print("Accuracy boosted trees: ", accuracy_boosted)
+    print("Accuracy random forest: ", accuracy_rf)
+    print("Accuracy engression: ", accuracy_engression)
+    print("Accuracy constant prediction: ", accuracy_constant)
 
-sampler_engression = optuna.samplers.TPESampler(seed=seed)
-study_engression = optuna.create_study(sampler=sampler_engression, direction='maximize')  # We want to maximize accuracy
-study_engression.optimize(engressor_NN, n_trials=N_TRIALS)
+    # GAM model
+    def gam_model(trial):
 
+        # Define the hyperparameters to optimize
+        params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
+                'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
 
-# Fit the boosted model and make predictions
-boosted_model.fit(X_train, y_train)
-y_test_hat_boosted = boosted_model.predict(X_test)
-accuracy_boosted = accuracy_score(y_test, y_test_hat_boosted)
+        # Create and train the model
+        gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
 
-# Fit the random forest model and make predictions
-rf_model.fit(X_train, y_train)
-y_test_hat_rf = rf_model.predict(X_test)
-accuracy_rf = accuracy_score(y_test, y_test_hat_rf)
+        # Predict on the validation set and calculate the accuracy
+        y_val_hat_gam = gam.predict(X_val)
+        accuracy_gam = accuracy_score(y_val, y_val_hat_gam)
 
-# Fit the logistic regression model and make predictions
-log_reg = LogisticRegression()
-log_reg.fit(X_train, y_train)
-y_test_hat_logreg = log_reg.predict(X_test)
-accuracy_logreg = accuracy_score(y_test, y_test_hat_logreg)
+        return accuracy_gam
 
-# Engression model
-params=study_engression.best_params
-params['noise_dim']=params['hidden_dim']
-# Check if CUDA is available and if so, move the tensors and the model to the GPU
-if torch.cuda.is_available():
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'], device="cuda")
-else: 
-    engressor_model=engression(X_train_tensor, y_train_tensor.reshape(-1,1), lr=params['learning_rate'], num_epoches=params['num_epoches'],num_layer=params['num_layer'], hidden_dim=params['hidden_dim'], noise_dim=params['noise_dim'], batch_size=1000, sigmoid=True, resblock=params['resblock'])
-# Assuming the model outputs probabilities for the two classes
-y_test_hat_engression=engressor_model.predict(X_test_tensor, target="mean")
-# Convert the probabilities to class labels
-y_test_hat_engression = y_test_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
-accuracy_engression = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate accuracy
+    # Create the sampler and study
+    sampler_gam = optuna.samplers.TPESampler(seed=seed)
+    study_gam = optuna.create_study(sampler=sampler_gam, direction='maximize')
 
-print("Accuracy logistic regression: ", accuracy_logreg)
-print("Accuracy boosted trees: ", accuracy_boosted)
-print("Accuracy random forest: ", accuracy_rf)
-print("Accuracy engression: ", accuracy_engression)
+    # Optimize the model
+    study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
-# GAM model
-def gam_model(trial):
+    # Create the final model with the best parameters
+    best_params = study_gam.best_params
+    final_gam_model = LogisticGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
 
-    # Define the hyperparameters to optimize
-    params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
-              'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
+    # Fit the model
+    final_gam_model.fit(X_train, y_train)
 
-    # Create and train the model
-    gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
+    # Predict on the test set
+    y_test_hat_gam = final_gam_model.predict(X_test)
+    # Calculate the accuracy
+    accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
+    print("Accuracy GAM: ", accuracy_gam)
 
-    # Predict on the validation set and calculate the accuracy
-    y_val_hat_gam = gam.predict(X_val)
-    accuracy_gam = accuracy_score(y_val, y_val_hat_gam)
+    accuracy_results = {'Constant': accuracy_constant.item(), 'MLP': accuracy_MLP.item(), 'ResNet': accuracy_ResNet.item(), 'FTTrans': accuracy_FTTrans.item(), 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'linear_regression': accuracy_logreg, 'engression': accuracy_engression.item(), 'GAM': accuracy_gam} 
 
-    return accuracy_gam
+    # Convert the dictionary to a DataFrame
+    df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])
 
-# Create the sampler and study
-sampler_gam = optuna.samplers.TPESampler(seed=seed)
-study_gam = optuna.create_study(sampler=sampler_gam, direction='maximize')
+    # Create the directory if it doesn't exist
+    os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
 
-# Optimize the model
-study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-# Create the final model with the best parameters
-best_params = study_gam.best_params
-final_gam_model = LogisticGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
-
-# Fit the model
-final_gam_model.fit(X_train, y_train)
-
-# Predict on the test set
-y_test_hat_gam = final_gam_model.predict(X_test)
-# Calculate the accuracy
-accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
-print("Accuracy GAM: ", accuracy_gam)
-
-accuracy_results = {'GP': accuracy_GP.item(), 'MLP': accuracy_MLP.item(), 'ResNet': accuracy_ResNet.item(), 'FTTrans': accuracy_FTTrans.item(), 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'linear_regression': accuracy_logreg, 'engression': accuracy_engression.item(), 'GAM': accuracy_gam}  
-
-# Convert the dictionary to a DataFrame
-df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])
-
-# Create the directory if it doesn't exist
-os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
-
-# Save the DataFrame to a CSV file
-df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_accuracy_results.csv', index=False)
+    # Save the DataFrame to a CSV file
+    df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_accuracy_results.csv', index=False)
