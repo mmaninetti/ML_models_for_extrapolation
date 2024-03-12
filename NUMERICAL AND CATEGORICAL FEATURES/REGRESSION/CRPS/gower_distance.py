@@ -516,7 +516,7 @@ for task_id in benchmark_suite.tasks[1:]:
         opt_params['feature_pre_filter']=False
 
         # Use LightGBMLossGuideRegressor for distributional prediction
-        boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="nll"))
+        boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="crps"))
         boosted_tree_model.train(opt_params, dtrain_, num_boost_round=n_rounds)
 
         # Predict both the mean and standard deviation
