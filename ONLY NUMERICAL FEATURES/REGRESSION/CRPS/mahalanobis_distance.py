@@ -600,7 +600,7 @@ for task_id in benchmark_suite.tasks:
         boosted_tree_model.fit(X_train_, y_train_)
         y_train__hat_boost=boosted_tree_model.predict(X_train_)
         
-        std_dev = np.std(y_train - y_train__hat_boost)
+        std_dev = np.std(y_train_ - y_train__hat_boost)
         y_val_hat_boost=boosted_tree_model.predict(X_val)
         # Calculate the CRPS for each prediction
         crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_boost[i], sig=std_dev) for i in range(len(y_val_np))]
@@ -626,7 +626,7 @@ for task_id in benchmark_suite.tasks:
         rf_model.fit(X_train_, y_train_)
         
         y_train__hat_rf=rf_model.predict(X_train_)
-        std_dev = np.std(y_train - y_train__hat_rf)
+        std_dev = np.std(y_train_ - y_train__hat_rf)
         y_val_hat_rf=rf_model.predict(X_val)
 
         # Calculate the CRPS for each prediction
