@@ -589,7 +589,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     log_loss_gam = log_loss(y_test, y_test_hat_gam)
     print("Log Loss GAM: ", log_loss_gam)
 
-    log_loss_results = {'constant': log_loss_constant.item(), 'MLP': log_loss_MLP.item(), 'ResNet': log_loss_ResNet.item(), 'FTTrans': log_loss_FTTrans.item(), 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'linear_regression': log_loss_logreg, 'engression': log_loss_engression.item(), 'GAM': log_loss_gam}
+    log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP.item(), 'ResNet': log_loss_ResNet.item(), 'FTTrans': log_loss_FTTrans.item(), 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'linear_regression': log_loss_logreg, 'engression': log_loss_engression.item(), 'GAM': log_loss_gam}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])
