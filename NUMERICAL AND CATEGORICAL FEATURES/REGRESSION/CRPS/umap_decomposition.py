@@ -215,14 +215,23 @@ for task_id in benchmark_suite.tasks[1:]:
         # Point prediction
         predictions = []
         with torch.no_grad():
+            for batch_X, _ in train__loader:
+                batch_predictions = MLP_model(batch_X).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+
+        y_train__hat_MLP = np.concatenate(predictions)
+
+        # Estimate standard deviation of the prediction error
+        std_dev_error = np.std(y_train_ - y_train__hat_MLP)
+
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
             for batch_X, _ in val_loader:
                 batch_predictions = MLP_model(batch_X).reshape(-1,)
                 predictions.append(batch_predictions.cpu().numpy())
 
         y_val_hat_MLP = np.concatenate(predictions)
-
-        # Estimate standard deviation of the prediction error
-        std_dev_error = np.std(y_val - y_val_hat_MLP)
 
         # Calculate the CRPS for each prediction
         crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_MLP[i], sig=std_dev_error) for i in range(len(y_val_hat_MLP))]
@@ -258,14 +267,23 @@ for task_id in benchmark_suite.tasks[1:]:
     # Point prediction
     predictions = []
     with torch.no_grad():
+        for batch_X, _ in train_loader:
+            batch_predictions = MLP_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_train_hat_MLP = np.concatenate(predictions)
+
+    # Estimate standard deviation of the prediction error
+    std_dev_error = np.std(y_train - y_train_hat_MLP)
+
+    # Point prediction
+    predictions = []
+    with torch.no_grad():
         for batch_X, _ in test_loader:
             batch_predictions = MLP_model(batch_X).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
     y_test_hat_MLP = np.concatenate(predictions)
-
-    # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_test - y_test_hat_MLP)
 
     # Create a normal distribution for each prediction
     pred_distributions = [norm(loc=y_test_hat_MLP[i], scale=std_dev_error) for i in range(len(y_test_hat_MLP))]
@@ -317,14 +335,23 @@ for task_id in benchmark_suite.tasks[1:]:
         # Point prediction
         predictions = []
         with torch.no_grad():
+            for batch_X, _ in train__loader:
+                batch_predictions = ResNet_model(batch_X).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+
+        y_train__hat_ResNet = np.concatenate(predictions)
+
+        # Estimate standard deviation of the prediction error
+        std_dev_error = np.std(y_train_ - y_train__hat_ResNet)
+
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
             for batch_X, _ in val_loader:
                 batch_predictions = ResNet_model(batch_X).reshape(-1,)
                 predictions.append(batch_predictions.cpu().numpy())
 
         y_val_hat_ResNet = np.concatenate(predictions)
-
-        # Estimate standard deviation of the prediction error
-        std_dev_error = np.std(y_val - y_val_hat_ResNet)
 
         # Calculate the CRPS for each prediction
         crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_ResNet[i], sig=std_dev_error) for i in range(len(y_val_hat_ResNet))]
@@ -363,14 +390,23 @@ for task_id in benchmark_suite.tasks[1:]:
     # Point prediction
     predictions = []
     with torch.no_grad():
+        for batch_X, _ in train_loader:
+            batch_predictions = ResNet_model(batch_X).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_train_hat_ResNet = np.concatenate(predictions)
+
+    # Estimate standard deviation of the prediction error
+    std_dev_error = np.std(y_train - y_train_hat_ResNet)
+
+    # Point prediction
+    predictions = []
+    with torch.no_grad():
         for batch_X, _ in test_loader:
             batch_predictions = ResNet_model(batch_X).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
     y_test_hat_ResNet = np.concatenate(predictions)
-
-    # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_test - y_test_hat_ResNet)
 
     # Calculate the CRPS for each prediction
     crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_ResNet[i], sig=std_dev_error) for i in range(len(y_test_hat_ResNet))]
@@ -426,14 +462,23 @@ for task_id in benchmark_suite.tasks[1:]:
         # Point prediction
         predictions = []
         with torch.no_grad():
+            for batch_X, _ in train__loader:
+                batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+
+        y_train__hat_FTTrans = np.concatenate(predictions)
+
+        # Estimate standard deviation of the prediction error
+        std_dev_error = np.std(y_train_ - y_train__hat_FTTrans)
+        
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
             for batch_X, _ in val_loader:
                 batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
                 predictions.append(batch_predictions.cpu().numpy())
 
         y_val_hat_FTTrans = np.concatenate(predictions)
-
-        # Estimate standard deviation of the prediction error
-        std_dev_error = np.std(y_val - y_val_hat_FTTrans)
 
         # Calculate the CRPS for each prediction
         crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_val_hat_FTTrans))]
@@ -476,14 +521,23 @@ for task_id in benchmark_suite.tasks[1:]:
     # Point prediction
     predictions = []
     with torch.no_grad():
+        for batch_X, _ in train_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_train_hat_FTTrans = np.concatenate(predictions)
+
+    # Estimate standard deviation of the prediction error
+    std_dev_error = np.std(y_train - y_train_hat_FTTrans)
+    
+    # Point prediction
+    predictions = []
+    with torch.no_grad():
         for batch_X, _ in test_loader:
             batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
             predictions.append(batch_predictions.cpu().numpy())
 
     y_test_hat_FTTrans = np.concatenate(predictions)
-
-    # Estimate standard deviation of the prediction error
-    std_dev_error = np.std(y_test - y_test_hat_FTTrans)
 
     # Calculate the CRPS for each prediction
     crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_test_hat_FTTrans))]
@@ -498,7 +552,7 @@ for task_id in benchmark_suite.tasks[1:]:
     # Create lgb dataset
     dtrain_ = lgb.Dataset(torch.tensor(X_train_.values, dtype=torch.float32).clone().detach(), label=y_train_.values)
 
-    def boosted(trial):
+    def boosted_LSS(trial):
 
         params = {
             'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.5, log=True),
@@ -528,13 +582,13 @@ for task_id in benchmark_suite.tasks[1:]:
         # Return the mean CRPS as the objective to be minimized
         return np.mean(crps_values)
 
-    sampler_boost = optuna.samplers.TPESampler(seed=seed)
-    study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
-    study_boost.optimize(boosted, n_trials=N_TRIALS)
+    sampler_boost_LSS = optuna.samplers.TPESampler(seed=seed)
+    study_boost_LSS = optuna.create_study(sampler=sampler_boost_LSS, direction='minimize')
+    study_boost_LSS.optimize(boosted_LSS, n_trials=N_TRIALS)
 
     np.random.seed(seed)
     quantiles=list(np.random.uniform(0,1,N_SAMPLES))
-    def rf(trial):
+    def distributional_rf(trial):
         params = {'num_trees': trial.suggest_int('num_trees', 100, 500),
             'mtry': trial.suggest_int('mtry', 0, d_in),
             'min_node_size': trial.suggest_int('min_node_size', 10, 100)}
@@ -553,7 +607,60 @@ for task_id in benchmark_suite.tasks[1:]:
 
     sampler_drf = optuna.samplers.TPESampler(seed=seed)
     study_drf = optuna.create_study(sampler=sampler_drf, direction='minimize')
-    study_drf.optimize(rf, n_trials=N_TRIALS)
+    study_drf.optimize(distributional_rf, n_trials=N_TRIALS)
+
+    def boosted(trial):
+
+        params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
+                'n_estimators': trial.suggest_int('n_estimators', 100, 500),
+                'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
+                'max_depth': trial.suggest_int('max_depth', 1, 30),
+                'num_leaves': 2**10,
+                'min_child_samples': trial.suggest_int('min_child_samples', 10, 100)}
+        
+        boosted_tree_model=lgbm.LGBMRegressor(**params)
+        boosted_tree_model.fit(X_train_, y_train_)
+        y_train__hat_boost=boosted_tree_model.predict(X_train_)
+        
+        std_dev = np.std(y_train - y_train__hat_boost)
+        y_val_hat_boost=boosted_tree_model.predict(X_val)
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_boost[i], sig=std_dev) for i in range(len(y_val_np))]
+        CRPS_boost = np.mean(crps_values)
+
+        return CRPS_boost
+
+    sampler_boost = optuna.samplers.TPESampler(seed=seed)
+    study_boost = optuna.create_study(sampler=sampler_boost, direction='minimize')
+    study_boost.optimize(boosted, n_trials=N_TRIALS)
+    params=study_boost.best_params
+    params['num_leaves']=2**10
+    boosted_model=lgbm.LGBMRegressor(**params)
+
+    def rf(trial):
+
+        params = {'n_estimators': trial.suggest_int('n_estimators', 100, 500),
+                'max_depth': trial.suggest_int('max_depth', 1, 30),
+                'max_features': trial.suggest_float('max_features', 0, 1),
+                'min_samples_leaf': trial.suggest_int('min_samples_leaf', 10, 100)}
+        
+        rf_model=RandomForestRegressor(**params)
+        rf_model.fit(X_train_, y_train_)
+        
+        y_train__hat_rf=rf_model.predict(X_train_)
+        std_dev = np.std(y_train - y_train__hat_rf)
+        y_val_hat_rf=rf_model.predict(X_val)
+
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_rf[i], sig=std_dev) for i in range(len(y_val_np))]
+        CRPS_rf = np.mean(crps_values)
+
+        return CRPS_rf
+
+    sampler_rf = optuna.samplers.TPESampler(seed=seed)
+    study_rf = optuna.create_study(sampler=sampler_rf, direction='minimize')
+    study_rf.optimize(rf, n_trials=N_TRIALS)
+    rf_model=RandomForestRegressor(**study_rf.best_params)
 
 
     def engressor_NN(trial):
@@ -585,22 +692,42 @@ for task_id in benchmark_suite.tasks[1:]:
 
 
     dtrain = lgb.Dataset(torch.tensor(X_train.values, dtype=torch.float32).clone().detach(), label=y_train.values)
-    opt_params = study_boost.best_params.copy()
+    opt_params = study_boost_LSS.best_params.copy()
     opt_params['num_leaves']=2**10
     n_rounds = opt_params["n_estimators"]
     del opt_params["n_estimators"]
     opt_params['feature_pre_filter']=False
     # Use LightGBMLossGuideRegressor for distributional prediction
-    boosted_tree_model = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="crps"))
-    boosted_tree_model.train(opt_params, dtrain, num_boost_round=n_rounds)
+    boosted_tree_model_LSS = LightGBMLSS(Gaussian(stabilization="None", response_fn="exp", loss_fn="crps"))
+    boosted_tree_model_LSS.train(opt_params, dtrain, num_boost_round=n_rounds)
     # Predict both the mean and standard deviation
-    pred_params=boosted_tree_model.predict(X_test, pred_type="parameters")
-    y_test_hat_boost=pred_params['loc']
+    pred_params=boosted_tree_model_LSS.predict(X_test, pred_type="parameters")
+    y_test_hat_boost_LSS = pred_params['loc']
     y_test_hat_std = pred_params['scale']
     # Calculate the CRPS for each prediction
-    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_boost[i], sig=y_test_hat_std[i]) for i in range(len(y_test))]
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_boost_LSS[i], sig=y_test_hat_std[i]) for i in range(len(y_test))]
     # Return the mean CRPS as the objective to be minimized
-    CRPS_boosted=np.mean(crps_values)
+    CRPS_boosted_LSS=np.mean(crps_values)
+
+    boosted_model.fit(X_train, y_train)
+    y_train_hat_boosted=boosted_model.predict(X_train)
+    # Calculate the standard deviation of the residuals
+    std_dev = np.std(y_train - y_train_hat_boosted)
+    y_test_hat_boosted=boosted_model.predict(X_test)
+    # Calculate the CRPS for each prediction
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_boosted[i], sig=std_dev) for i in range(len(y_test_np))]
+    CRPS_boosted = np.mean(crps_values)
+    
+
+    rf_model.fit(X_train, y_train)
+    y_train_hat_rf=rf_model.predict(X_train)
+    # Calculate the standard deviation of the residuals
+    std_dev = np.std(y_train - y_train_hat_rf)
+    y_test_hat_rf=rf_model.predict(X_test)
+    # Calculate the CRPS for each prediction
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_rf[i], sig=std_dev) for i in range(len(y_test_np))]
+    CRPS_rf = np.mean(crps_values)
+    
 
     drf_model=drf(**study_drf.best_params, seed=seed)
     drf_model.fit(X_train, y_train)
@@ -609,13 +736,14 @@ for task_id in benchmark_suite.tasks[1:]:
     # Calculate the CRPS for each prediction
     crps_values = [crps_ensemble(y_test_np[i], y_test_hat_drf.quantile[i].reshape(-1)) for i in range(len(y_test_np))]
     # Return the mean CRPS as the objective to be minimized
-    CRPS_rf=np.mean(crps_values)
+    CRPS_drf=np.mean(crps_values)
 
     lin_reg=LinearRegression()
     lin_reg.fit(X_train, y_train)
-    y_test_hat_linreg=lin_reg.predict(X_test)
+    y_train_hat_linreg=lin_reg.predict(X_train)
     # Calculate the standard deviation of the residuals
-    std_dev = np.std(y_test - y_test_hat_linreg)
+    std_dev = np.std(y_train - y_train_hat_linreg)
+    y_test_hat_linreg=lin_reg.predict(X_test)
     # Calculate the CRPS for each prediction
     crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_linreg[i], sig=std_dev) for i in range(len(y_test_np))]
     CRPS_linreg = np.mean(crps_values)
@@ -636,14 +764,17 @@ for task_id in benchmark_suite.tasks[1:]:
     crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i].cpu()).reshape(-1,)) for i in range(len(y_test_np))]
     CRPS_engression=np.mean(crps_values)
 
-    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    constant_prediction_train = np.full_like(y_train, np.mean(y_train))
     # Calculate the standard deviation of the residuals
-    std_dev = np.std(y_test - constant_prediction)
+    std_dev = np.std(y_train - constant_prediction_train)
+    constant_prediction = np.full_like(y_test, np.mean(y_train))
     # Calculate the CRPS for each prediction
     crps_values = [crps_gaussian(y_test_np[i], mu=constant_prediction[i], sig=std_dev) for i in range(len(y_test_np))]
     CRPS_constant = np.mean(crps_values)
 
     print("CRPS linear regression: ",CRPS_linreg)
+    print("CRPS distributional boosted trees", CRPS_boosted_LSS)
+    print("CRPS distributional random forest", CRPS_drf)
     print("CRPS boosted trees", CRPS_boosted)
     print("CRPS random forest", CRPS_rf)
     print("CRPS engression", CRPS_engression)
@@ -660,8 +791,9 @@ for task_id in benchmark_suite.tasks[1:]:
         gam = LinearGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
 
         # Predict on the validation set and calculate the CRPS
+        y_train_hat_gam = gam.predict(X_train)
+        std_dev_error = np.std(y_train - y_train_hat_gam)
         y_val_hat_gam = gam.predict(X_val)
-        std_dev_error = np.std(y_val - y_val_hat_gam)
         crps_gam = [crps_gaussian(y_val_np[i], mu=y_val_hat_gam[i], sig=std_dev_error) for i in range(len(y_val_hat_gam))]
         crps_gam = np.mean(crps_gam)
 
@@ -681,16 +813,19 @@ for task_id in benchmark_suite.tasks[1:]:
     # Fit the model
     final_gam_model.fit(X_train, y_train)
 
+    # Predict on the train set
+    y_train_hat_gam = final_gam_model.predict(X_train)
+    std_dev_error = np.std(y_train - y_train_hat_gam)
+
     # Predict on the test set
     y_test_hat_gam = final_gam_model.predict(X_test)
 
     # Calculate the CRPS
-    std_dev_error = np.std(y_test - y_test_hat_gam)
     crps_gam = [crps_gaussian(y_test_np[i], mu=y_test_hat_gam[i], sig=std_dev_error) for i in range(len(y_test_hat_gam))]
     crps_gam = np.mean(crps_gam)
     print("CRPS GAM: ", crps_gam)
 
-    crps_results = {'constant': CRPS_constant, 'MLP': crps_MLP.item(), 'ResNet': crps_ResNet.item(), 'FTTrans': crps_FTTrans.item(), 'boosted_trees': CRPS_boosted, 'drf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression.item(), 'GAM': crps_gam}
+    crps_results = {'constant': CRPS_constant, 'MLP': crps_MLP.item(), 'ResNet': crps_ResNet.item(), 'FTTrans': crps_FTTrans.item(), 'distributional_boosted_trees': CRPS_boosted_LSS, 'drf': CRPS_drf, 'boosted_trees': CRPS_boosted, 'rf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression.item(), 'GAM': crps_gam}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
