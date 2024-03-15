@@ -38,7 +38,7 @@ SUITE_ID = 337 # Classification on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361055
-for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark suite
+for task_id in benchmark_suite.tasks[2:]:  # iterate over all tasks in the benchmark suite
     # Create the checkpoint directory if it doesn't exist
     os.makedirs('CHECKPOINTS/UMAP', exist_ok=True)
     CHECKPOINT_PATH = f'CHECKPOINTS/UMAP/task_{task_id}.pt'
