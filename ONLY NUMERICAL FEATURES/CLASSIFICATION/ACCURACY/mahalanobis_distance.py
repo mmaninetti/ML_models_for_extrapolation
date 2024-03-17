@@ -50,6 +50,9 @@ for task_id in benchmark_suite.tasks[2:]:
 
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
+    
+    if len(X)>=100000:
+        continue
 
     # Find features with absolute correlation > 0.9
     corr_matrix = X.corr().abs()
