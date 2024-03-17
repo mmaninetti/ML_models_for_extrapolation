@@ -40,8 +40,8 @@ SUITE_ID = 337 # Classification on numerical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-task_id=361055
-for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
+#task_id=361055
+for task_id in benchmark_suite.tasks[2:]:  # iterate over all tasks in the suite
 
     # Create the checkpoint directory if it doesn't exist
     os.makedirs('CHECKPOINTS/SPATIAL_DEPTH', exist_ok=True)
