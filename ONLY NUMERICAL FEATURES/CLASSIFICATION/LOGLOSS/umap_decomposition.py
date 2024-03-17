@@ -38,7 +38,7 @@ SUITE_ID = 337 # Classification on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361055
-for task_id in benchmark_suite.tasks[2:]:
+for task_id in benchmark_suite.tasks:
 
     # Create the checkpoint directory if it doesn't exist
     os.makedirs('CHECKPOINTS/UMAP', exist_ok=True)
@@ -537,7 +537,7 @@ for task_id in benchmark_suite.tasks[2:]:
     y_test_hat_engression = engressor_model.predict(X_test_tensor, target="mean")
     log_loss_engression = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate log loss
 
-    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    constant_prediction = np.array([np.mean(y_train)]*len(y_test))
     log_loss_constant = log_loss(y_test, constant_prediction)
 
     print("Log Loss logistic regression: ", log_loss_logreg)

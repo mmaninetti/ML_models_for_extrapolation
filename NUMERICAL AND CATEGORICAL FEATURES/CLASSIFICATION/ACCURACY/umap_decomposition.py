@@ -548,7 +548,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     y_test_hat_engression = y_test_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
     accuracy_engression = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate accuracy
 
-    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    constant_prediction = np.array([np.mean(y_train)]*len(y_test))
     constant_prediction = np.where(constant_prediction >= 0.5, 1, 0)
     accuracy_constant = accuracy_score(y_test, constant_prediction)
 

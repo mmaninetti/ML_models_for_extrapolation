@@ -38,7 +38,7 @@ SUITE_ID = 337 # Classification on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361055
-for task_id in benchmark_suite.tasks[2:]:  # iterate over all tasks in the benchmark suite
+for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark suite
     
     # Create the checkpoint directory if it doesn't exist
     os.makedirs('CHECKPOINTS/UMAP', exist_ok=True)
@@ -538,7 +538,7 @@ for task_id in benchmark_suite.tasks[2:]:  # iterate over all tasks in the bench
     y_test_hat_engression = y_test_hat_engression.ge(0.5).float()  # Apply threshold to get binary predictions
     accuracy_engression = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate accuracy
 
-    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    constant_prediction = np.array([np.mean(y_train)]*len(y_test))
     constant_prediction = np.where(constant_prediction >= 0.5, 1, 0)
     accuracy_constant = accuracy_score(y_test, constant_prediction)
 

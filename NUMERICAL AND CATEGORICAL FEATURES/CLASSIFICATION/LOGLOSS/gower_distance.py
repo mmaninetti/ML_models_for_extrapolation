@@ -548,7 +548,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     y_test_hat_engression = engressor_model.predict(X_test_tensor, target="mean")
     log_loss_engression = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_engression.cpu().numpy())  # Calculate log loss
 
-    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    constant_prediction = np.array([np.mean(y_train)]*len(y_test))
     log_loss_constant = log_loss(y_test, constant_prediction)
 
     print("Log Loss logistic regression: ", log_loss_logreg)
