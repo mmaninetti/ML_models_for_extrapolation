@@ -28,6 +28,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder 
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
+import re
 
 #SUITE_ID = 336 # Regression on numerical features
 SUITE_ID = 337 # Classification on numerical features
@@ -37,7 +38,7 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361055
 
-for task_id in benchmark_suite.tasks:
+for task_id in benchmark_suite.tasks[4:]:
 
     # Create the checkpoint directory if it doesn't exist
     os.makedirs('CHECKPOINTS/MAHALANOBIS', exist_ok=True)
@@ -61,6 +62,9 @@ for task_id in benchmark_suite.tasks:
 
     # Drop one of the highly correlated features
     X = X.drop(high_corr_features, axis=1)
+
+    # Rename columns to avoid problems with LGBM
+    X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 
     # Transform y to int type, to then be able to apply BCEWithLogitsLoss
     # Create a label encoder
