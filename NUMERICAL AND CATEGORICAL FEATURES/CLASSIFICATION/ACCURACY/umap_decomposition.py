@@ -30,6 +30,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.preprocessing import LabelEncoder
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
+import re
 
 #SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -120,6 +121,9 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     # Convert data to PyTorch tensors
     # Modify X_train_, X_val, X_train, and X_test to have dummy variables
     X = pd.get_dummies(X.astype(str), drop_first=True)
+
+    # Rename columns to avoid problems with LGBM
+    X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 
     X_train = X.loc[close_index,:]
     X_test = X.loc[far_index,:]
