@@ -40,6 +40,9 @@ for task_id in benchmark_suite.tasks[6:]:
 
     print(f"Task {task_id}")
 
+    if task_id==361084:
+        continue
+
     # Create the checkpoint directory if it doesn't exist
     os.makedirs('CHECKPOINTS/MAHALANOBIS', exist_ok=True)
     CHECKPOINT_PATH = f'CHECKPOINTS/MAHALANOBIS/task_{task_id}.pt'
