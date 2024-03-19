@@ -810,10 +810,10 @@ for task_id in benchmark_suite.tasks[1:]:
     crps_values = [crps_ensemble(y_test_np[i], np.array(y_test_hat_engression_samples[i].cpu()).reshape(-1,)) for i in range(len(y_test_np))]
     CRPS_engression=np.mean(crps_values)
 
-    constant_prediction_train = np.full_like(y_train, np.mean(y_train))
+    constant_prediction_train = np.array([np.mean(y_train)]*len(y_train))
     # Calculate the standard deviation of the residuals
     std_dev = np.std(y_train - constant_prediction_train)
-    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    constant_prediction = np.array([np.mean(y_train)]*len(y_test))
     # Calculate the CRPS for each prediction
     crps_values = [crps_gaussian(y_test_np[i], mu=constant_prediction[i], sig=std_dev) for i in range(len(y_test_np))]
     CRPS_constant = np.mean(crps_values)

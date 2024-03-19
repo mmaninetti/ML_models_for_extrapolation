@@ -519,7 +519,7 @@ for task_id in benchmark_suite.tasks[12:]:
     y_test_hat_linreg=lin_reg.predict(X_test)
     RMSE_linreg=np.sqrt(np.mean((y_test-y_test_hat_linreg)**2))
 
-    constant_prediction = np.full_like(y_test, np.mean(y_train))
+    constant_prediction = np.array([np.mean(y_train)]*len(y_test))
     RMSE_constant = np.sqrt(np.mean((y_test - constant_prediction) ** 2))
 
     params=study_engression.best_params
