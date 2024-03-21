@@ -754,7 +754,7 @@ for task_id in task_ids:
     RMSE_constant = np.sqrt(np.mean((y_test - constant_prediction) ** 2))
 
     # Load the clustering results
-    results = pd.read_csv('RESULTS/MAHALANOBIS/'+str(task_id)+'mahalanobis_RMSE_results.csv')
+    results = pd.read_csv('RESULTS/MAHALANOBIS/'+str(task_id)+'_mahalanobis_RMSE_results.csv')
 
     # Update the value of the "constant" row with RMSE_constant
     results['RMSE'][0] = RMSE_constant

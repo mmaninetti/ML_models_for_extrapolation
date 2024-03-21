@@ -40,6 +40,20 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361093
 for task_id in benchmark_suite.tasks[1:]:
 
+    # Set the random seed for reproducibility
+    N_TRIALS=100
+    N_SAMPLES=100
+    PATIENCE=40
+    N_EPOCHS=1000
+    GP_ITERATIONS=1000
+    BATCH_SIZE=1024
+    seed=10
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
+
     print(f"Task {task_id}")
 
     # Create the checkpoint directory if it doesn't exist
@@ -54,8 +68,22 @@ for task_id in benchmark_suite.tasks[1:]:
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
     
-    if len(X)>=100000:
-        continue
+    if len(X) > 15000:
+        indices = np.random.choice(X.index, size=15000, replace=False)
+        X = X.iloc[indices,]
+        y = y[indices]
+
+    # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
+    # Remove non-categorical columns with more than 70% of the data in one category
+    for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if indicator]:
+        if len(X[col].unique()) > 20:
+            X = X.drop(col, axis=1)
+
+    for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if not indicator]:
+        if len(X[col].unique()) < 10:
+            X = X.drop(col, axis=1)
+        if X[col].value_counts(normalize=True).max() > 0.7:
+                X = X.drop(col, axis=1)
     
     # Find features with absolute correlation > 0.9
     corr_matrix = X.corr().abs()
@@ -64,21 +92,6 @@ for task_id in benchmark_suite.tasks[1:]:
 
     # Drop one of the highly correlated features
     X = X.drop(high_corr_features, axis=1)
-
-
-    # Set the random seed for reproducibility
-    N_TRIALS=100
-    N_SAMPLES=100
-    PATIENCE=40
-    N_EPOCHS=1000
-    GP_ITERATIONS=1000
-    BATCH_SIZE=1024
-    seed=10
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    random.seed(seed)
 
 
     # Compute Gower distance and define train and test set
