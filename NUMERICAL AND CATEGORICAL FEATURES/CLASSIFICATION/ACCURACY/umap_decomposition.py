@@ -94,6 +94,16 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     # Drop one of the highly correlated features
     X = X.drop(high_corr_features, axis=1)
 
+    # Rename columns to avoid problems with LGBM
+    X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
+
+    # Transform y to int type, to then be able to apply BCEWithLogitsLoss
+    # Create a label encoder
+    le = LabelEncoder()
+    # Fit the label encoder and transform y to get binary labels
+    y_encoded = le.fit_transform(y)
+    # Convert the result back to a pandas Series
+    y = pd.Series(y_encoded, index=y.index)
 
     # Apply UMAP decomposition
     umap = UMAP(n_components=2, random_state=42)
