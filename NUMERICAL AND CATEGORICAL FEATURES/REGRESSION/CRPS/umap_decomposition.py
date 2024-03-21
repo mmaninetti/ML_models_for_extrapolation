@@ -58,8 +58,8 @@ for task_id in benchmark_suite.tasks:
     print(f"Task {task_id}")
 
     # Create the checkpoint directory if it doesn't exist
-    os.makedirs('CHECKPOINTS/GOWER', exist_ok=True)
-    CHECKPOINT_PATH = f'CHECKPOINTS/GOWER/task_{task_id}.pt'
+    os.makedirs('CHECKPOINTS/UMAP', exist_ok=True)
+    CHECKPOINT_PATH = f'CHECKPOINTS/UMAP/task_{task_id}.pt'
 
     print(f"Task {task_id}")
 
