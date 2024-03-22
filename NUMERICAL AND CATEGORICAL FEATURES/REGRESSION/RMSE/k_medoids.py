@@ -84,7 +84,7 @@ for task_id in benchmark_suite.tasks[1:]:
     for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if not indicator]:
         if len(X[col].unique()) < 10:
             X = X.drop(col, axis=1)
-        if X[col].value_counts(normalize=True).max() > 0.7:
+        elif X[col].value_counts(normalize=True).max() > 0.7:
                 X = X.drop(col, axis=1)
     
     # Find features with absolute correlation > 0.9
