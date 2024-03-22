@@ -493,6 +493,10 @@ for task_id in benchmark_suite.tasks:
     RMSE_FTTrans=torch.sqrt(torch.mean(torch.square(y_test_tensor - y_test_hat_FTTrans)))
     print("RMSE FTTrans: ", RMSE_FTTrans)
     del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
+    if os.path.exists(CHECKPOINT_PATH):
+        os.remove(CHECKPOINT_PATH)
+    else:
+        print("The file does not exist.")
 
     #### Boosted trees, random forest, engression, linear regression
     def boosted(trial):
