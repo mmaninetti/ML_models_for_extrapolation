@@ -32,9 +32,9 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
 
 # Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/CLUSTERING'):
-    shutil.rmtree('CHECKPOINTS/CLUSTERING')
-os.makedirs('CHECKPOINTS/CLUSTERING')
+if os.path.exists('CHECKPOINTS/SPATIAL_DEPTH'):
+    shutil.rmtree('CHECKPOINTS/SPATIAL_DEPTH')
+os.makedirs('CHECKPOINTS/SPATIAL_DEPTH')
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
