@@ -28,9 +28,9 @@ import re
 import shutil
 
 # Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/CLUSTERING'):
-    shutil.rmtree('CHECKPOINTS/CLUSTERING')
-os.makedirs('CHECKPOINTS/CLUSTERING')
+if os.path.exists('CHECKPOINTS/MAHALANOBIS'):
+    shutil.rmtree('CHECKPOINTS/MAHALANOBIS')
+os.makedirs('CHECKPOINTS/MAHALANOBIS')
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
