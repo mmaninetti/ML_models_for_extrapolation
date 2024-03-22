@@ -39,7 +39,7 @@ SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361110
-for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
+for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
 
     # Set the random seed for reproducibility
     N_TRIALS=100
