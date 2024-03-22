@@ -283,6 +283,7 @@ for task_id in benchmark_suite.tasks[1:]:
     y_test_hat_MLP = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))
     log_loss_MLP = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_MLP.cpu().numpy())  # Calculate log loss
     print("Log Loss MLP: ", log_loss_MLP)
+    del MLP_model, optimizer, criterion, y_test_hat_MLP, predictions
 
     # #### ResNet
     def ResNet_opt(trial):
@@ -368,6 +369,7 @@ for task_id in benchmark_suite.tasks[1:]:
     y_test_hat_ResNet = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
     log_loss_ResNet = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_ResNet.cpu().numpy())  # Calculate log loss
     print("Log Loss ResNet: ", log_loss_ResNet)
+    del ResNet_model, optimizer, criterion, y_test_hat_ResNet, predictions
 
     # #### FFTransformer
 
@@ -467,6 +469,7 @@ for task_id in benchmark_suite.tasks[1:]:
     y_test_hat_FTTrans = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
     log_loss_FTTrans = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.cpu().numpy())  # Calculate log loss
     print("Log Loss FTTrans: ", log_loss_FTTrans)
+    del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
 
     #### Boosted trees, random forest, engression, linear regression
     def boosted(trial):
