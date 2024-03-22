@@ -22,6 +22,13 @@ import os
 from pygam import LinearGAM, s, f
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
+import re
+import shutil
+
+# Create the checkpoint directory if it doesn't exist
+if os.path.exists('CHECKPOINTS/CLUSTERING'):
+    shutil.rmtree('CHECKPOINTS/CLUSTERING')
+os.makedirs('CHECKPOINTS/CLUSTERING')
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -30,30 +37,7 @@ SUITE_ID = 336 # Regression on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361072
-for task_id in benchmark_suite.tasks[17:]:
-
-    print(f"Task {task_id}")
-
-    # Create the checkpoint directory if it doesn't exist
-    os.makedirs('CHECKPOINTS/CLUSTERING', exist_ok=True)
-    CHECKPOINT_PATH = f'CHECKPOINTS/CLUSTERING/task_{task_id}.pt'
-
-    task = openml.tasks.get_task(task_id)  # download the OpenML task
-    dataset = task.get_dataset()
-
-    X, y, categorical_indicator, attribute_names = dataset.get_data(
-            dataset_format="dataframe", target=dataset.default_target_attribute)
-    
-    if len(X)>=100000:
-        continue
-    
-    # Find features with absolute correlation > 0.9
-    corr_matrix = X.corr().abs()
-    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-    high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
-
-    # Drop one of the highly correlated features
-    X = X.drop(high_corr_features, axis=1)
+for task_id in benchmark_suite.tasks:
 
     # Set the random seed for reproducibility
     N_TRIALS=100
@@ -69,6 +53,43 @@ for task_id in benchmark_suite.tasks[17:]:
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
 
+    print(f"Task {task_id}")
+
+    CHECKPOINT_PATH = f'CHECKPOINTS/CLUSTERING/task_{task_id}.pt'
+
+    task = openml.tasks.get_task(task_id)  # download the OpenML task
+    dataset = task.get_dataset()
+
+    X, y, categorical_indicator, attribute_names = dataset.get_data(
+            dataset_format="dataframe", target=dataset.default_target_attribute)
+    
+    if len(X) > 15000:
+        indices = np.random.choice(X.index, size=15000, replace=False)
+        X = X.iloc[indices,]
+        y = y[indices]
+
+    # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
+    # Remove non-categorical columns with more than 70% of the data in one category
+    for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if indicator]:
+        if len(X[col].unique()) > 20:
+            X = X.drop(col, axis=1)
+
+    for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if not indicator]:
+        if len(X[col].unique()) < 10:
+            X = X.drop(col, axis=1)
+        elif X[col].value_counts(normalize=True).max() > 0.7:
+                X = X.drop(col, axis=1)
+    
+    # Find features with absolute correlation > 0.9
+    corr_matrix = X.corr().abs()
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
+
+    # Drop one of the highly correlated features
+    X = X.drop(high_corr_features, axis=1)
+
+    # Rename columns to avoid problems with LGBM
+    X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 
     # New new implementation
     N_CLUSTERS=20
@@ -616,7 +637,7 @@ for task_id in benchmark_suite.tasks[17:]:
     df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
+    os.makedirs('RESULTS2/CLUSTERING', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_RMSE_results.csv', index=False)
+    df.to_csv(f'RESULTS2/CLUSTERING/{task_id}_clustering_RMSE_results.csv', index=False)
