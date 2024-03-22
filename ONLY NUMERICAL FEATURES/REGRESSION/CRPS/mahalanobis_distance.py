@@ -28,6 +28,12 @@ from pygam import LinearGAM, s, f
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
 from drf import drf
+import shutil
+
+# Create the checkpoint directory if it doesn't exist
+if os.path.exists('CHECKPOINTS/MAHALANOBIS'):
+    shutil.rmtree('CHECKPOINTS/MAHALANOBIS')
+os.makedirs('CHECKPOINTS/MAHALANOBIS')
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -36,35 +42,7 @@ SUITE_ID = 336 # Regression on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361072
-for task_id in benchmark_suite.tasks[8:]:
-
-    print(f"Task {task_id}")
-
-    if task_id==361084:
-        continue
-
-    # Create the checkpoint directory if it doesn't exist
-    os.makedirs('CHECKPOINTS/MAHALANOBIS', exist_ok=True)
-    CHECKPOINT_PATH = f'CHECKPOINTS/MAHALANOBIS/task_{task_id}.pt'
-
-    print(f"Task {task_id}")
-
-    task = openml.tasks.get_task(task_id)  # download the OpenML task
-    dataset = task.get_dataset()
-
-    X, y, categorical_indicator, attribute_names = dataset.get_data(
-            dataset_format="dataframe", target=dataset.default_target_attribute)
-    
-    if len(X)>=100000:
-        continue
-    
-    # Find features with absolute correlation > 0.9
-    corr_matrix = X.corr().abs()
-    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-    high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
-
-    # Drop one of the highly correlated features
-    X = X.drop(high_corr_features, axis=1)
+for task_id in benchmark_suite.tasks:
 
     # Set the random seed for reproducibility
     N_TRIALS=100
@@ -80,6 +58,43 @@ for task_id in benchmark_suite.tasks[8:]:
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
 
+    print(f"Task {task_id}")
+
+    CHECKPOINT_PATH = f'CHECKPOINTS/MAHALANOBIS/task_{task_id}.pt'
+
+    task = openml.tasks.get_task(task_id)  # download the OpenML task
+    dataset = task.get_dataset()
+
+    X, y, categorical_indicator, attribute_names = dataset.get_data(
+            dataset_format="dataframe", target=dataset.default_target_attribute)
+    
+    if len(X) > 15000:
+        indices = np.random.choice(X.index, size=15000, replace=False)
+        X = X.iloc[indices,]
+        y = y[indices]
+
+    # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
+    # Remove non-categorical columns with more than 70% of the data in one category
+    for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if indicator]:
+        if len(X[col].unique()) > 20:
+            X = X.drop(col, axis=1)
+
+    for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if not indicator]:
+        if len(X[col].unique()) < 10:
+            X = X.drop(col, axis=1)
+        elif X[col].value_counts(normalize=True).max() > 0.7:
+                X = X.drop(col, axis=1)
+    
+    # Find features with absolute correlation > 0.9
+    corr_matrix = X.corr().abs()
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
+
+    # Drop one of the highly correlated features
+    X = X.drop(high_corr_features, axis=1)
+
+    # Rename columns to avoid problems with LGBM
+    X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 
     # calculate the mean and covariance matrix of the dataset
     mean = np.mean(X, axis=0)
@@ -531,6 +546,10 @@ for task_id in benchmark_suite.tasks[8:]:
 
     print("CRPS FTTrans: ", crps_FTTrans)
     del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
+    if os.path.exists(CHECKPOINT_PATH):
+        os.remove(CHECKPOINT_PATH)
+    else:
+        print("The file does not exist.")
 
     #### Boosted trees, random forest, engression, linear regression
     # Create lgb dataset
@@ -815,7 +834,7 @@ for task_id in benchmark_suite.tasks[8:]:
     df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
+    os.makedirs('RESULTS2/MAHALANOBIS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv', index=False)
+    df.to_csv(f'RESULTS2/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv', index=False)
