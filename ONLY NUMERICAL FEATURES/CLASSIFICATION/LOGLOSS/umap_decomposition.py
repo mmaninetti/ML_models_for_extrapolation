@@ -574,48 +574,52 @@ for task_id in benchmark_suite.tasks:
     print("Log Loss random forest: ", log_loss_rf)
     print("Log Loss engression: ", log_loss_engression)
 
-    # GAM model
-    def gam_model(trial):
+    if task_id!=361055:
+        # GAM model
+        def gam_model(trial):
 
-        # Define the hyperparameters to optimize
-        params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
-                'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
-        
-        # Create and train the model
-        gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
+            # Define the hyperparameters to optimize
+            params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
+                    'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
+            
+            # Create and train the model
+            gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
 
-        # Predict on the validation set and calculate the log loss
-        y_val_hat_gam = gam.predict_proba(X_val)
-        y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
-        y_val_hat_gam_df.fillna(0.5, inplace=True)
-        y_val_hat_gam = y_val_hat_gam_df.values
-        log_loss_gam = log_loss(y_val, y_val_hat_gam)
+            # Predict on the validation set and calculate the log loss
+            y_val_hat_gam = gam.predict_proba(X_val)
+            y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
+            y_val_hat_gam_df.fillna(0.5, inplace=True)
+            y_val_hat_gam = y_val_hat_gam_df.values
+            log_loss_gam = log_loss(y_val, y_val_hat_gam)
 
-        return log_loss_gam
+            return log_loss_gam
 
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')  # We want to minimize log loss
+        # Create the sampler and study
+        sampler_gam = optuna.samplers.TPESampler(seed=seed)
+        study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')  # We want to minimize log loss
 
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
+        # Optimize the model
+        study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
-    # Create the final model with the best parameters
-    best_params = study_gam.best_params
-    final_gam_model = LogisticGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
+        # Create the final model with the best parameters
+        best_params = study_gam.best_params
+        final_gam_model = LogisticGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
 
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
+        # Fit the model
+        final_gam_model.fit(X_train, y_train)
 
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict_proba(X_test)
-    y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
-    y_test_hat_gam_df.fillna(0.5, inplace=True)
-    y_test_hat_gam = y_test_hat_gam_df.values
-    # Calculate the log loss
-    log_loss_gam = log_loss(y_test, y_test_hat_gam)
-    print("Log Loss GAM: ", log_loss_gam)
-    log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}
+        # Predict on the test set
+        y_test_hat_gam = final_gam_model.predict_proba(X_test)
+        y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
+        y_test_hat_gam_df.fillna(0.5, inplace=True)
+        y_test_hat_gam = y_test_hat_gam_df.values
+        # Calculate the log loss
+        log_loss_gam = log_loss(y_test, y_test_hat_gam)
+        print("Log Loss GAM: ", log_loss_gam)
+        log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}
+
+    else:
+        log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])
