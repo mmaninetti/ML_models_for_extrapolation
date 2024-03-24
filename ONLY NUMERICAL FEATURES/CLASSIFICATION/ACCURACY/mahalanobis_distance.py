@@ -29,6 +29,12 @@ from sklearn.preprocessing import LabelEncoder
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import re
+import shutil
+
+# Create the checkpoint directory if it doesn't exist
+if os.path.exists('CHECKPOINTS/MAHALANOBIS'):
+    shutil.rmtree('CHECKPOINTS/MAHALANOBIS')
+os.makedirs('CHECKPOINTS/MAHALANOBIS')
 
 #SUITE_ID = 336 # Regression on numerical features
 SUITE_ID = 337 # Classification on numerical features
@@ -38,10 +44,22 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361055
 
-for task_id in benchmark_suite.tasks[4:]:
+for task_id in benchmark_suite.tasks:
 
-    # Create the checkpoint directory if it doesn't exist
-    os.makedirs('CHECKPOINTS/MAHALANOBIS', exist_ok=True)
+    # Set the random seed for reproducibility
+    N_TRIALS=100
+    N_SAMPLES=100
+    PATIENCE=40
+    N_EPOCHS=1000
+    GP_ITERATIONS=1000
+    BATCH_SIZE=1024
+    seed=10
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
+
     CHECKPOINT_PATH = f'CHECKPOINTS/MAHALANOBIS/task_{task_id}.pt'
 
     print(f"Task {task_id}")
@@ -52,9 +70,23 @@ for task_id in benchmark_suite.tasks[4:]:
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
     
-    if len(X)>=100000:
-        continue
+    if len(X) > 15000:
+        indices = np.random.choice(X.index, size=15000, replace=False)
+        X = X.iloc[indices,]
+        y = y[indices]
 
+    # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
+    # Remove non-categorical columns with more than 70% of the data in one category
+    for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if indicator]:
+        if len(X[col].unique()) > 20:
+            X = X.drop(col, axis=1)
+
+    for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if not indicator]:
+        if len(X[col].unique()) < 10:
+            X = X.drop(col, axis=1)
+        elif X[col].value_counts(normalize=True).max() > 0.7:
+                X = X.drop(col, axis=1)
+    
     # Find features with absolute correlation > 0.9
     corr_matrix = X.corr().abs()
     upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
@@ -73,20 +105,6 @@ for task_id in benchmark_suite.tasks[4:]:
     y_encoded = le.fit_transform(y)
     # Convert the result back to a pandas Series
     y = pd.Series(y_encoded, index=y.index)
-
-    # Set the random seed for reproducibility
-    N_TRIALS=100
-    N_SAMPLES=100
-    PATIENCE=40
-    N_EPOCHS=1000
-    GP_ITERATIONS=1000
-    BATCH_SIZE=1024
-    seed=10
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    random.seed(seed)
 
 
     # calculate the mean and covariance matrix of the dataset
@@ -430,6 +448,10 @@ for task_id in benchmark_suite.tasks[4:]:
     accuracy_FTTrans = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
     print("Accuracy FTTrans: ", accuracy_FTTrans)
     del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
+    if os.path.exists(CHECKPOINT_PATH):
+        os.remove(CHECKPOINT_PATH)
+    else:
+        print("The file does not exist.")
 
     #### Boosted trees, random forest, engression, linear regression
     def boosted(trial):
@@ -585,7 +607,7 @@ for task_id in benchmark_suite.tasks[4:]:
     df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
+    os.makedirs('RESULTS2/MAHALANOBIS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_accuracy_results.csv', index=False)
+    df.to_csv(f'RESULTS2/MAHALANOBIS/{task_id}_mahalanobis_accuracy_results.csv', index=False)
