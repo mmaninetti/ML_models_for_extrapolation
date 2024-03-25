@@ -45,6 +45,9 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361072
 for task_id in benchmark_suite.tasks:
 
+    if task_id<=361084:
+        continue
+
     # Set the random seed for reproducibility
     N_TRIALS=100
     N_SAMPLES=100
@@ -132,7 +135,7 @@ for task_id in benchmark_suite.tasks:
     y_val = y_train.loc[far_index_]
 
 
-        # Standardize the data
+    # Standardize the data
     mean_X_train_ = np.mean(X_train_, axis=0)
     std_X_train_ = np.std(X_train_, axis=0)
     X_train__scaled = (X_train_ - mean_X_train_) / std_X_train_
