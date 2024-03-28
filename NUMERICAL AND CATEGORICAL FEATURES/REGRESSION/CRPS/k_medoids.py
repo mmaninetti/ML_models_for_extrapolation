@@ -31,6 +31,12 @@ import gower
 from sklearn_extra.cluster import KMedoids
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
+import shutil
+
+# Create the checkpoint directory if it doesn't exist
+if os.path.exists('CHECKPOINTS/KMEDOIDS'):
+    shutil.rmtree('CHECKPOINTS/KMEDOIDS')
+os.makedirs('CHECKPOINTS/KMEDOIDS')
 
 #openml.config.apikey = 'FILL_IN_OPENML_API_KEY'  # set the OpenML Api Key
 #SUITE_ID = 336 # Regression on numerical features
@@ -56,10 +62,6 @@ for task_id in benchmark_suite.tasks[1:]:
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
 
-    print(f"Task {task_id}")
-
-    # Create the checkpoint directory if it doesn't exist
-    os.makedirs('CHECKPOINTS/KMEDOIDS', exist_ok=True)
     CHECKPOINT_PATH = f'CHECKPOINTS/KMEDOIDS/task_{task_id}.pt'
 
     print(f"Task {task_id}")
@@ -76,34 +78,37 @@ for task_id in benchmark_suite.tasks[1:]:
         y = y[indices]
 
     # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
-    # Remove non-categorical columns with more than 70% of the data in one category
+    # Remove non-categorical columns with more than 70% of the data in one category from X_clean
     for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if indicator]:
         if len(X[col].unique()) > 20:
             X = X.drop(col, axis=1)
 
+    X_clean=X.copy()
     for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if not indicator]:
         if len(X[col].unique()) < 10:
             X = X.drop(col, axis=1)
+            X_clean = X_clean.drop(col, axis=1)
         elif X[col].value_counts(normalize=True).max() > 0.7:
-                X = X.drop(col, axis=1)
-    
+            X_clean = X_clean.drop(col, axis=1)
+
     # Find features with absolute correlation > 0.9
-    corr_matrix = X.corr().abs()
+    corr_matrix = X_clean.corr().abs()
     upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
     high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
 
-    # Drop one of the highly correlated features
-    X = X.drop(high_corr_features, axis=1)
+    # Drop one of the highly correlated features from X_clean
+    X_clean = X_clean.drop(high_corr_features, axis=1)
+
+    # Rename columns to avoid problems with LGBM
+    X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 
 
     N_CLUSTERS=20
 
-    X_gower = X.copy()
+    for col in X_clean.select_dtypes(['category']).columns:
+        X_clean[col] = X_clean[col].astype('object')
 
-    for col in X_gower.select_dtypes(['category']).columns:
-        X_gower[col] = X_gower[col].astype('object')
-
-    gower_dist_matrix = gower.gower_matrix(X_gower)
+    gower_dist_matrix = gower.gower_matrix(X_clean)
 
     kmedoids = KMedoids(n_clusters=N_CLUSTERS, random_state=0, metric='precomputed', init='k-medoids++').fit(gower_dist_matrix)
     distances=[]
@@ -112,9 +117,9 @@ for task_id in benchmark_suite.tasks[1:]:
     ideal_len=len(kmedoids.labels_)/5
 
     for i in np.arange(N_CLUSTERS):
-        cluster_data = X_gower.loc[kmedoids.labels_==i,:]
+        cluster_data = X_clean.loc[kmedoids.labels_==i,:]
         # Compute the Gower distance between each data point in the cluster and each data point in the global dataset
-        distances_matrix = gower.gower_matrix(cluster_data, X_gower)
+        distances_matrix = gower.gower_matrix(cluster_data, X_clean)
         # Compute the average distance
         average_distance = np.mean(distances_matrix)
         gower_dist.append(average_distance)
@@ -128,17 +133,16 @@ for task_id in benchmark_suite.tasks[1:]:
     final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
     labelss=dist_df.index[0:final+1].to_list()
     labels=pd.Series(kmedoids.labels_).isin(labelss)
-    labels.index=X.index
+    labels.index=X_clean.index
     close_index=labels.index[np.where(labels==False)[0]]
     far_index=labels.index[np.where(labels==True)[0]]
 
-    X_train = X.loc[close_index,:]
-    X_gower_ = X_train.copy()
+    X_clean_ = X_clean.loc[close_index,:]
 
-    for col in X_gower_.select_dtypes(['category']).columns:
-        X_gower_[col] = X_gower_[col].astype('object')
+    for col in X_clean_.select_dtypes(['category']).columns:
+        X_clean_[col] = X_clean_[col].astype('object')
 
-    gower_dist_matrix_ = gower.gower_matrix(X_gower_)
+    gower_dist_matrix_ = gower.gower_matrix(X_clean_)
 
     kmedoids_ = KMedoids(n_clusters=N_CLUSTERS, random_state=0, metric='precomputed', init='k-medoids++').fit(gower_dist_matrix_)
     distances_=[]
@@ -147,9 +151,9 @@ for task_id in benchmark_suite.tasks[1:]:
     ideal_len_=len(kmedoids.labels_)/5
 
     for i in np.arange(N_CLUSTERS):
-        cluster_data_ = X_gower_.loc[kmedoids_.labels_==i,:]
+        cluster_data_ = X_clean_.loc[kmedoids_.labels_==i,:]
         # Compute the Gower distance between each data point in the cluster and each data point in the global dataset
-        distances_matrix_ = gower.gower_matrix(cluster_data_, X_gower_)
+        distances_matrix_ = gower.gower_matrix(cluster_data_, X_clean_)
         # Compute the average distance
         average_distance_ = np.mean(distances_matrix_)
         gower_dist_.append(average_distance_)
@@ -163,10 +167,9 @@ for task_id in benchmark_suite.tasks[1:]:
     final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
     labelss_=dist_df_.index[0:final_+1].to_list()
     labels_=pd.Series(kmedoids_.labels_).isin(labelss_)
-    labels_.index=X_train.index
+    labels_.index=X_clean_.index
     close_index_train=labels_.index[np.where(labels_==False)[0]]
     far_index_train=labels_.index[np.where(labels_==True)[0]]
-
 
     # Convert data to PyTorch tensors
     # Modify X_train_, X_val, X_train, and X_test to have dummy variables
@@ -186,27 +189,24 @@ for task_id in benchmark_suite.tasks[1:]:
     non_dummy_cols = X.select_dtypes(exclude=['bool']).columns
     mean_X_train_ = np.mean(X_train_[non_dummy_cols], axis=0)
     std_X_train_ = np.std(X_train_[non_dummy_cols], axis=0)
-    X_train__scaled = X_train_.copy()
-    X_train__scaled[non_dummy_cols] = (X_train_[non_dummy_cols] - mean_X_train_) / std_X_train_
-    X_val_scaled = X_val.copy()
-    X_val_scaled[non_dummy_cols] = (X_val[non_dummy_cols] - mean_X_train_) / std_X_train_
+    X_train_[non_dummy_cols] = (X_train_[non_dummy_cols] - mean_X_train_) / std_X_train_
+    X_val = X_val.copy()
+    X_val[non_dummy_cols] = (X_val[non_dummy_cols] - mean_X_train_) / std_X_train_
 
     mean_X_train = np.mean(X_train[non_dummy_cols], axis=0)
     std_X_train = np.std(X_train[non_dummy_cols], axis=0)
-    X_train_scaled = X_train.copy()
-    X_train_scaled[non_dummy_cols] = (X_train[non_dummy_cols] - mean_X_train) / std_X_train
-    X_test_scaled = X_test.copy()
-    X_test_scaled[non_dummy_cols] = (X_test[non_dummy_cols] - mean_X_train) / std_X_train
-
+    X_train[non_dummy_cols] = (X_train[non_dummy_cols] - mean_X_train) / std_X_train
+    X_test = X_test.copy()
+    X_test[non_dummy_cols] = (X_test[non_dummy_cols] - mean_X_train) / std_X_train
 
     # Convert data to PyTorch tensors
-    X_train__tensor = torch.tensor(X_train__scaled.values, dtype=torch.float32)
+    X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
     y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
-    X_train_tensor = torch.tensor(X_train_scaled.values, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
     y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-    X_val_tensor = torch.tensor(X_val_scaled.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val_tensor.values, dtype=torch.float32)
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
-    X_test_tensor = torch.tensor(X_test_scaled.values, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
     # Convert to use GPU if available
@@ -606,6 +606,10 @@ for task_id in benchmark_suite.tasks[1:]:
 
     print("CRPS FTTrans: ", crps_FTTrans)
     del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
+    if os.path.exists(CHECKPOINT_PATH):
+        os.remove(CHECKPOINT_PATH)
+    else:
+        print("The file does not exist.")
 
     #### Boosted trees, random forest, engression, linear regression
     # Create lgb dataset
@@ -670,7 +674,7 @@ for task_id in benchmark_suite.tasks[1:]:
 
     def boosted(trial):
 
-        params = {'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5, log=True),
+        params = {'learning_rate': trial.suggest_float('learning_rate', 0.0001, 0.5, log=True),
                 'n_estimators': trial.suggest_int('n_estimators', 100, 500),
                 'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
                 'max_depth': trial.suggest_int('max_depth', 1, 30),
@@ -842,16 +846,23 @@ for task_id in benchmark_suite.tasks[1:]:
     #### GAM model
     def gam_model(trial):
 
-        # Define the hyperparameters to optimize
-        params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
-                'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
+        n_splines = []
+        lam = []
+        spline_order = []
 
+        # Iterate over each covariate in X_train_
+        for col in X_train_.columns:
+            # Define the search space for n_splines, lam, and spline_order
+            n_splines.append(trial.suggest_int(f'n_splines_{col}', 10, 100))
+            lam.append(trial.suggest_float(f'lam_{col}', 1e-3, 1e3, log=True))
+            spline_order.append(trial.suggest_int(f'spline_order_{col}', 1, 5))
+        
         # Create and train the model
-        gam = LinearGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
+        gam = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
 
         # Predict on the validation set and calculate the CRPS
-        y_train_hat_gam = gam.predict(X_train)
-        std_dev_error = np.std(y_train - y_train_hat_gam)
+        y_train__hat_gam = gam.predict(X_train_)
+        std_dev_error = np.std(y_train_ - y_train__hat_gam)
         y_val_hat_gam = gam.predict(X_val)
         crps_gam = [crps_gaussian(y_val_np[i], mu=y_val_hat_gam[i], sig=std_dev_error) for i in range(len(y_val_hat_gam))]
         crps_gam = np.mean(crps_gam)
@@ -865,9 +876,21 @@ for task_id in benchmark_suite.tasks[1:]:
     # Optimize the model
     study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
+    n_splines = []
+    lam = []
+    spline_order = []
+
     # Create the final model with the best parameters
     best_params = study_gam.best_params
-    final_gam_model = LinearGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
+
+    # Iterate over each covariate in X_train_
+    for col in X_train.columns:
+        # Define the search space for n_splines, lam, and spline_order
+        n_splines.append(best_params[f'n_splines_{col}'])
+        lam.append(best_params[f'lam_{col}'])
+        spline_order.append(best_params[f'spline_order_{col}'])
+
+    final_gam_model = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
 
     # Fit the model
     final_gam_model.fit(X_train, y_train)

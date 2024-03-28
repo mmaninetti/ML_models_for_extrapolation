@@ -47,9 +47,6 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361055
 for task_id in benchmark_suite.tasks:
 
-    if task_id <= 361276:
-        continue
-
     # Set the random seed for reproducibility
     N_TRIALS=100
     N_SAMPLES=100
@@ -80,24 +77,26 @@ for task_id in benchmark_suite.tasks:
         y = y[indices]
 
     # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
-    # Remove non-categorical columns with more than 70% of the data in one category
+    # Remove non-categorical columns with more than 70% of the data in one category from X_clean
     for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if indicator]:
         if len(X[col].unique()) > 20:
             X = X.drop(col, axis=1)
 
+    X_clean=X.copy()
     for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if not indicator]:
         if len(X[col].unique()) < 10:
             X = X.drop(col, axis=1)
+            X_clean = X_clean.drop(col, axis=1)
         elif X[col].value_counts(normalize=True).max() > 0.7:
-                X = X.drop(col, axis=1)
-    
+            X_clean = X_clean.drop(col, axis=1)
+
     # Find features with absolute correlation > 0.9
-    corr_matrix = X.corr().abs()
+    corr_matrix = X_clean.corr().abs()
     upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
     high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
 
-    # Drop one of the highly correlated features
-    X = X.drop(high_corr_features, axis=1)
+    # Drop one of the highly correlated features from X_clean
+    X_clean = X_clean.drop(high_corr_features, axis=1)
 
     # Rename columns to avoid problems with LGBM
     X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
@@ -113,7 +112,7 @@ for task_id in benchmark_suite.tasks:
 
     # Apply UMAP decomposition
     umap = UMAP(n_components=2, random_state=42)
-    X_umap = umap.fit_transform(X)
+    X_umap = umap.fit_transform(X_clean)
 
     # calculate the Euclidean distance matrix
     euclidean_dist_matrix = euclidean_distances(X_umap)
@@ -121,17 +120,18 @@ for task_id in benchmark_suite.tasks:
     # calculate the Euclidean distance for each data point
     euclidean_dist = np.mean(euclidean_dist_matrix, axis=1)
 
-    euclidean_dist = pd.Series(euclidean_dist, index=X.index)
+    euclidean_dist = pd.Series(euclidean_dist, index=X_clean.index)
     far_index = euclidean_dist.index[np.where(euclidean_dist >= np.quantile(euclidean_dist, 0.8))[0]]
     close_index = euclidean_dist.index[np.where(euclidean_dist < np.quantile(euclidean_dist, 0.8))[0]]
 
+    X_train_clean = X_clean.loc[close_index,:]
     X_train = X.loc[close_index,:]
     X_test = X.loc[far_index,:]
     y_train = y.loc[close_index]
     y_test = y.loc[far_index]
 
     # Apply UMAP decomposition on the training set
-    X_umap_train = umap.fit_transform(X_train)
+    X_umap_train = umap.fit_transform(X_train_clean)
 
     # calculate the Euclidean distance matrix for the training set
     euclidean_dist_matrix_train = euclidean_distances(X_umap_train)
@@ -139,7 +139,7 @@ for task_id in benchmark_suite.tasks:
     # calculate the Euclidean distance for each data point in the training set
     euclidean_dist_train = np.mean(euclidean_dist_matrix_train, axis=1)
 
-    euclidean_dist_train = pd.Series(euclidean_dist_train, index=X_train.index)
+    euclidean_dist_train = pd.Series(euclidean_dist_train, index=X_train_clean.index)
     far_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train >= np.quantile(euclidean_dist_train, 0.8))[0]]
     close_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train < np.quantile(euclidean_dist_train, 0.8))[0]]
 
@@ -577,58 +577,74 @@ for task_id in benchmark_suite.tasks:
     print("Log Loss random forest: ", log_loss_rf)
     print("Log Loss engression: ", log_loss_engression)
 
-    if task_id!=361055:
-        # GAM model
-        def gam_model(trial):
+    # GAM model
+    def gam_model(trial):
 
-            # Define the hyperparameters to optimize
-            params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
-                    'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
-            
-            # Create and train the model
-            gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
+        n_splines = []
+        lam = []
+        spline_order = []
 
-            # Predict on the validation set and calculate the log loss
-            y_val_hat_gam = gam.predict_proba(X_val)
-            y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
-            y_val_hat_gam_df.fillna(0.5, inplace=True)
-            y_val_hat_gam = y_val_hat_gam_df.values
-            log_loss_gam = log_loss(y_val, y_val_hat_gam)
+        # Iterate over each covariate in X_train_
+        for col in X_train_.columns:
+            # Define the search space for n_splines, lam, and spline_order
+            n_splines.append(trial.suggest_int(f'n_splines_{col}', 10, 100))
+            lam.append(trial.suggest_float(f'lam_{col}', 1e-3, 1e3, log=True))
+            spline_order.append(trial.suggest_int(f'spline_order_{col}', 1, 5))
+        
+        # Create and train the model
+        gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
 
-            return log_loss_gam
+        # Predict on the validation set and calculate the log loss
+        y_val_hat_gam = gam.predict_proba(X_val)
+        y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
+        y_val_hat_gam_df.fillna(0.5, inplace=True)
+        y_val_hat_gam = y_val_hat_gam_df.values
+        log_loss_gam = log_loss(y_val, y_val_hat_gam)
 
-        # Create the sampler and study
-        sampler_gam = optuna.samplers.TPESampler(seed=seed)
-        study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')  # We want to minimize log loss
+        return log_loss_gam
 
-        # Optimize the model
-        study_gam.optimize(gam_model, n_trials=N_TRIALS)
+    # Create the sampler and study
+    sampler_gam = optuna.samplers.TPESampler(seed=seed)
+    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')  # We want to minimize log loss
 
-        # Create the final model with the best parameters
-        best_params = study_gam.best_params
-        final_gam_model = LogisticGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
+    # Optimize the model
+    study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
-        # Fit the model
-        final_gam_model.fit(X_train, y_train)
+    n_splines = []
+    lam = []
+    spline_order = []
 
-        # Predict on the test set
-        y_test_hat_gam = final_gam_model.predict_proba(X_test)
-        y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
-        y_test_hat_gam_df.fillna(0.5, inplace=True)
-        y_test_hat_gam = y_test_hat_gam_df.values
-        # Calculate the log loss
-        log_loss_gam = log_loss(y_test, y_test_hat_gam)
-        print("Log Loss GAM: ", log_loss_gam)
-        log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}
+    # Create the final model with the best parameters
+    best_params = study_gam.best_params
 
-    else:
-        log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression}
+    # Iterate over each covariate in X_train_
+    for col in X_train.columns:
+        # Define the search space for n_splines, lam, and spline_order
+        n_splines.append(best_params[f'n_splines_{col}'])
+        lam.append(best_params[f'lam_{col}'])
+        spline_order.append(best_params[f'spline_order_{col}'])
+
+    final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
+
+    # Fit the model
+    final_gam_model.fit(X_train, y_train)
+
+    # Predict on the test set
+    y_test_hat_gam = final_gam_model.predict_proba(X_test)
+    y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
+    y_test_hat_gam_df.fillna(0.5, inplace=True)
+    y_test_hat_gam = y_test_hat_gam_df.values
+    # Calculate the log loss
+    log_loss_gam = log_loss(y_test, y_test_hat_gam)
+    print("Log Loss GAM: ", log_loss_gam)
+    
+    log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/UMAP_DECOMPOSITION', exist_ok=True)
+    os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_logloss_results.csv', index=False)
+    df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_logloss_results.csv', index=False)

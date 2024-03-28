@@ -46,9 +46,6 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361055
 for task_id in benchmark_suite.tasks:
 
-    if task_id <= 361276:
-        continue
-
     # Set the random seed for reproducibility
     N_TRIALS=100
     N_SAMPLES=100
@@ -79,24 +76,26 @@ for task_id in benchmark_suite.tasks:
         y = y[indices]
 
     # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
-    # Remove non-categorical columns with more than 70% of the data in one category
+    # Remove non-categorical columns with more than 70% of the data in one category from X_clean
     for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if indicator]:
         if len(X[col].unique()) > 20:
             X = X.drop(col, axis=1)
 
+    X_clean=X.copy()
     for col in [attribute for attribute, indicator in zip(attribute_names, categorical_indicator) if not indicator]:
         if len(X[col].unique()) < 10:
             X = X.drop(col, axis=1)
+            X_clean = X_clean.drop(col, axis=1)
         elif X[col].value_counts(normalize=True).max() > 0.7:
-                X = X.drop(col, axis=1)
-    
+            X_clean = X_clean.drop(col, axis=1)
+
     # Find features with absolute correlation > 0.9
-    corr_matrix = X.corr().abs()
+    corr_matrix = X_clean.corr().abs()
     upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
     high_corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.9)]
 
-    # Drop one of the highly correlated features
-    X = X.drop(high_corr_features, axis=1)
+    # Drop one of the highly correlated features from X_clean
+    X_clean = X_clean.drop(high_corr_features, axis=1)
 
     # Rename columns to avoid problems with LGBM
     X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
@@ -112,14 +111,14 @@ for task_id in benchmark_suite.tasks:
     # New new implementation
     N_CLUSTERS=20
     # calculate the mean and covariance matrix of the dataset
-    mean = np.mean(X, axis=0)
-    cov = np.cov(X.T)
+    mean = np.mean(X_clean, axis=0)
+    cov = np.cov(X_clean.T)
     scaler = StandardScaler()
 
     # transform data to compute the clusters
-    X_scaled = scaler.fit_transform(X)
+    X_clean_scaled = scaler.fit_transform(X_clean)
 
-    kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_scaled)
+    kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_clean_scaled)
     distances=[]
     mahalanobis_dist=[]
     counts=[]
@@ -127,7 +126,7 @@ for task_id in benchmark_suite.tasks:
     for i in np.arange(N_CLUSTERS):
         distances.append(np.abs(np.sum(kmeans.labels_==i)-ideal_len))
         counts.append(np.sum(kmeans.labels_==i))
-        mean_k= np.mean(X.loc[kmeans.labels_==i,:], axis=0)
+        mean_k= np.mean(X_clean.loc[kmeans.labels_==i,:], axis=0)
         mahalanobis_dist.append(mahalanobis(mean_k, mean, np.linalg.inv(cov)))
 
     dist_df=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist, 'count': counts}, index=np.arange(N_CLUSTERS))
@@ -138,24 +137,25 @@ for task_id in benchmark_suite.tasks:
     final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
     labelss=dist_df.index[0:final+1].to_list()
     labels=pd.Series(kmeans.labels_).isin(labelss)
-    labels.index=X.index
+    labels.index=X_clean.index
     close_index=labels.index[np.where(labels==False)[0]]
     far_index=labels.index[np.where(labels==True)[0]]
 
+    X_train_clean = X_clean.loc[close_index,:]
     X_train = X.loc[close_index,:]
     X_test = X.loc[far_index,:]
     y_train = y.loc[close_index]
     y_test = y.loc[far_index]
 
     # calculate the mean and covariance matrix of the dataset
-    mean_ = np.mean(X_train, axis=0)
-    cov_ = np.cov(X_train.T)
+    mean_ = np.mean(X_train_clean, axis=0)
+    cov_ = np.cov(X_train_clean.T)
     scaler_ = StandardScaler()
 
     # transform data to compute the clusters
-    X_train_scaled = scaler_.fit_transform(X_train)
+    X_train_clean_scaled = scaler_.fit_transform(X_train_clean)
 
-    kmeans_ = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_train_scaled)
+    kmeans_ = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_train_clean_scaled)
     distances_=[]
     counts_=[]
     mahalanobis_dist_=[]
@@ -163,7 +163,7 @@ for task_id in benchmark_suite.tasks:
     for i in np.arange(N_CLUSTERS):
         distances_.append(np.abs(np.sum(kmeans_.labels_==i)-ideal_len_))
         counts_.append(np.sum(kmeans_.labels_==i))
-        mean_k_= np.mean(X_train.loc[kmeans_.labels_==i,:], axis=0)
+        mean_k_= np.mean(X_train_clean.loc[kmeans_.labels_==i,:], axis=0)
         mahalanobis_dist_.append(mahalanobis(mean_k_, mean_, np.linalg.inv(cov_)))
 
     dist_df_=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist_, 'count': counts_}, index=np.arange(N_CLUSTERS))
@@ -174,7 +174,7 @@ for task_id in benchmark_suite.tasks:
     final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
     labelss_=dist_df_.index[0:final_+1].to_list()
     labels_=pd.Series(kmeans_.labels_).isin(labelss_)
-    labels_.index=X_train.index
+    labels_.index=X_train_clean.index
     close_index_=labels_.index[np.where(labels_==False)[0]]
     far_index_=labels_.index[np.where(labels_==True)[0]]
 
@@ -187,23 +187,23 @@ for task_id in benchmark_suite.tasks:
     # Standardize the data
     mean_X_train_ = np.mean(X_train_, axis=0)
     std_X_train_ = np.std(X_train_, axis=0)
-    X_train__scaled = (X_train_ - mean_X_train_) / std_X_train_
-    X_val_scaled = (X_val - mean_X_train_) / std_X_train_
+    X_train_ = (X_train_ - mean_X_train_) / std_X_train_
+    X_val = (X_val - mean_X_train_) / std_X_train_
 
     mean_X_train = np.mean(X_train, axis=0)
     std_X_train = np.std(X_train, axis=0)
-    X_train_scaled = (X_train - mean_X_train) / std_X_train
-    X_test_scaled = (X_test - mean_X_train) / std_X_train
+    X_train = (X_train - mean_X_train) / std_X_train
+    X_test = (X_test - mean_X_train) / std_X_train
 
 
     # Convert data to PyTorch tensors
-    X_train__tensor = torch.tensor(X_train__scaled.values, dtype=torch.float32)
+    X_train__tensor = torch.tensor(X_train_.values, dtype=torch.float32)
     y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
-    X_train_tensor = torch.tensor(X_train_scaled.values, dtype=torch.float32)
+    X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
     y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-    X_val_tensor = torch.tensor(X_val_scaled.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
-    X_test_tensor = torch.tensor(X_test_scaled.values, dtype=torch.float32)
+    X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
 
     # Convert to use GPU if available
@@ -615,12 +615,19 @@ for task_id in benchmark_suite.tasks:
     # GAM model
     def gam_model(trial):
 
-        # Define the hyperparameters to optimize
-        params = {'n_splines': trial.suggest_int('n_splines', 5, 20),
-                'lam': trial.suggest_float('lam', 1e-3, 1, log=True)}
+        n_splines = []
+        lam = []
+        spline_order = []
+
+        # Iterate over each covariate in X_train_
+        for col in X_train_.columns:
+            # Define the search space for n_splines, lam, and spline_order
+            n_splines.append(trial.suggest_int(f'n_splines_{col}', 10, 100))
+            lam.append(trial.suggest_float(f'lam_{col}', 1e-3, 1e3, log=True))
+            spline_order.append(trial.suggest_int(f'spline_order_{col}', 1, 5))
         
         # Create and train the model
-        gam = LogisticGAM(s(0, n_splines=params['n_splines'], lam=params['lam'])).fit(X_train_, y_train_)
+        gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
 
         # Predict on the validation set and calculate the log loss
         y_val_hat_gam = gam.predict_proba(X_val)
@@ -638,9 +645,21 @@ for task_id in benchmark_suite.tasks:
     # Optimize the model
     study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
+    n_splines = []
+    lam = []
+    spline_order = []
+
     # Create the final model with the best parameters
     best_params = study_gam.best_params
-    final_gam_model = LogisticGAM(s(0, n_splines=best_params['n_splines'], lam=best_params['lam']))
+
+    # Iterate over each covariate in X_train_
+    for col in X_train.columns:
+        # Define the search space for n_splines, lam, and spline_order
+        n_splines.append(best_params[f'n_splines_{col}'])
+        lam.append(best_params[f'lam_{col}'])
+        spline_order.append(best_params[f'spline_order_{col}'])
+
+    final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
 
     # Fit the model
     final_gam_model.fit(X_train, y_train)
@@ -653,6 +672,7 @@ for task_id in benchmark_suite.tasks:
     # Calculate the log loss
     log_loss_gam = log_loss(y_test, y_test_hat_gam)
     print("Log Loss GAM: ", log_loss_gam)
+    
     log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}
 
     # Convert the dictionary to a DataFrame
@@ -660,7 +680,7 @@ for task_id in benchmark_suite.tasks:
 
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/CLUSTERING', exist_ok=True)
+    os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/CLUSTERING/{task_id}_clustering_logloss_results.csv', index=False)
+    df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_logloss_results.csv', index=False)
