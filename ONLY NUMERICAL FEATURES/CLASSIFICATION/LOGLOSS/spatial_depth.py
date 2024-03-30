@@ -50,7 +50,7 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361055
 for task_id in benchmark_suite.tasks:
 
-    if task_id<=361061:
+    if task_id<=361067:
         continue
 
     # Set the random seed for reproducibility
@@ -583,7 +583,7 @@ for task_id in benchmark_suite.tasks:
     print("Log Loss engression: ", log_loss_engression)
 
     # GAM model
-    if task_id!=361062:
+    if (task_id!=361062) and (task_id!=361068):
         def gam_model(trial):
 
             n_splines = []
