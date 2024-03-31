@@ -50,7 +50,10 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361055
 for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
 
-    if task_id<=361067:
+    if task_id<=361273:
+        continue
+
+    if task_id==361276:
         continue
 
     # Set the random seed for reproducibility
@@ -579,6 +582,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     print("Accuracy constant prediction: ", accuracy_constant)
 
     # GAM model
+    '''
     if (task_id!=361062) and (task_id!=361068):
         def gam_model(trial):
 
@@ -639,6 +643,9 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     else:
         accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': float("NaN")} 
 
+    '''
+
+    accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': float("NaN")} 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])
 
