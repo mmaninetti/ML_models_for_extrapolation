@@ -50,7 +50,7 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361055
 for task_id in benchmark_suite.tasks:
 
-    if task_id<=361067:
+    if task_id<=361273:
         continue
 
     # Set the random seed for reproducibility
@@ -583,6 +583,7 @@ for task_id in benchmark_suite.tasks:
     print("Log Loss engression: ", log_loss_engression)
 
     # GAM model
+    '''
     if (task_id!=361062) and (task_id!=361068):
         def gam_model(trial):
 
@@ -648,6 +649,8 @@ for task_id in benchmark_suite.tasks:
 
     else:
         log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': float("NaN")}
+    '''
+    log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': float("NaN")}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])
