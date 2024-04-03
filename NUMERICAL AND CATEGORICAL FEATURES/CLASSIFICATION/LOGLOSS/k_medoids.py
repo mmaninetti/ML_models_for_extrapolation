@@ -32,6 +32,7 @@ from utils import EarlyStopping, train, train_trans, train_no_early_stopping, tr
 from torch.utils.data import TensorDataset, DataLoader
 import re
 import shutil
+import gpboost as gpb
 
 # Create the checkpoint directory if it doesn't exist
 if os.path.exists('CHECKPOINTS/KMEDOIDS'):
@@ -622,21 +623,70 @@ for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
     print("Log Loss random forest: ", log_loss_rf)
     print("Log Loss engression: ", log_loss_engression)
 
-    # GAM model
+    #### GP model
+    approximations = ["vecchia", "fitc"]
+    kernels = ["matern_ard", "gaussian_ard"]
+    shapes = [0.5, 1.5, 2.5]
+    best_logloss = float('inf')    
+    intercept_train=np.ones(X_train_.shape[0])
+    intercept_val=np.ones(X_val.shape[0])
+    for approx in approximations:
+        for kernel in kernels:
+            if kernel=="matern_ard":
+                for shape in shapes:
+                    if approx=="vecchia":
+                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
+                    else:
+                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx)
+                    gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
+                    pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
+                    logloss_GP = log_loss(y_val, pred_resp)
+                    if logloss_GP < best_logloss:
+                        best_logloss = logloss_GP
+                        best_approx = approx
+                        best_kernel = kernel
+                        best_shape = shape
+            else:
+                if approx=="vecchia":
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
+                else:
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx)
+                gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
+                pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
+                logloss_GP = log_loss(y_val, pred_resp)
+                if logloss_GP < best_logloss:
+                    best_logloss = logloss_GP
+                    best_approx = approx
+                    best_kernel = kernel
+                    best_shape = None
+    
+    intercept_train=np.ones(X_train.shape[0])
+    intercept_test=np.ones(X_test.shape[0])
+    if best_kernel=="matern_ard":
+        if approx=="vecchia":
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
+        else:
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx)
+    else:
+        if approx=="vecchia":
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
+        else:
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx)
+
+    gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
+    pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=False, predict_response=True)['mu']
+    logloss_GP = log_loss(y_test, pred_resp)    
+    print("logloss GP: ", logloss_GP)
+
+    #### GAM model
     def gam_model(trial):
 
-        n_splines = []
-        lam = []
-        spline_order = []
-
-        # Iterate over each covariate in X_train_
-        for col in X_train_.columns:
-            # Define the search space for n_splines, lam, and spline_order
-            n_splines.append(trial.suggest_int(f'n_splines_{col}', 10, 100))
-            lam.append(trial.suggest_float(f'lam_{col}', 1e-3, 1e3, log=True))
-            spline_order.append(trial.suggest_int(f'spline_order_{col}', 1, 5))
+        # Define the search space for n_splines, lam, and spline_order
+        n_splines=trial.suggest_int('n_splines', 10, 100)
+        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
+        spline_order=trial.suggest_int('spline_order', 1, 5)
         
-        # Create and train the model
+        ## Create and train the model
         gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
 
         # Predict on the validation set and calculate the log loss
@@ -650,24 +700,16 @@ for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
 
     # Create the sampler and study
     sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')  # We want to minimize log loss
+    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
 
     # Optimize the model
     study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
-    n_splines = []
-    lam = []
-    spline_order = []
-
-    # Create the final model with the best parameters
+    # Get the best parameters
     best_params = study_gam.best_params
-
-    # Iterate over each covariate in X_train_
-    for col in X_train.columns:
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines.append(best_params[f'n_splines_{col}'])
-        lam.append(best_params[f'lam_{col}'])
-        spline_order.append(best_params[f'spline_order_{col}'])
+    n_splines=best_params['n_splines']
+    lam=best_params['lam']
+    spline_order=best_params['spline_order']
 
     final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
 
@@ -683,7 +725,8 @@ for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
     log_loss_gam = log_loss(y_test, y_test_hat_gam)
     print("Log Loss GAM: ", log_loss_gam)
     
-    log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam}
+    log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam, 'GP': logloss_GP}
+
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])
