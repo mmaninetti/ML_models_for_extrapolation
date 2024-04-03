@@ -31,6 +31,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
 from torch.utils.data import TensorDataset, DataLoader
 import shutil
+import gpboost as gpb
 
 # Create the checkpoint directory if it doesn't exist
 if os.path.exists('CHECKPOINTS/UMAP'):
@@ -872,7 +873,57 @@ for task_id in benchmark_suite.tasks:
     crps_gam = np.mean(crps_gam)
     print("CRPS GAM: ", crps_gam)
 
-    crps_results = {'constant': CRPS_constant, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'distributional_boosted_trees': CRPS_boosted_LSS, 'drf': CRPS_drf, 'boosted_trees': CRPS_boosted, 'rf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression, 'GAM': crps_gam}
+    #### GP model
+    approximations = ["vecchia", "fitc"]
+    kernels = ["matern_ard", "gaussian_ard"]
+    shapes = [0.5, 1.5, 2.5]
+    best_CRPS = float('inf')    
+    intercept_train=np.ones(X_train_.shape[0])
+    intercept_val=np.ones(X_val.shape[0])
+    for approx in approximations:
+        for kernel in kernels:
+            if kernel=="matern_ard":
+                for shape in shapes:
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx)
+                    gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
+                    pred_mu = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
+                    pred_std = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['var']
+                    crps_values = [crps_gaussian(y_val_np[i], mu=pred_mu[i], sig=pred_std[i]) for i in range(len(y_val))] 
+                    CRPS_GP = np.mean(crps_values)
+                    if CRPS_GP < best_CRPS:
+                        best_CRPS = CRPS_GP
+                        best_approx = approx
+                        best_kernel = kernel
+                        best_shape = shape
+            else:
+                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx)
+                gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
+                pred_mu = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
+                pred_std = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['var']
+                crps_values = [crps_gaussian(y_val_np[i], mu=pred_mu[i], sig=pred_std[i]) for i in range(len(y_val))] 
+                CRPS_GP = np.mean(crps_values)
+                if CRPS_GP < best_CRPS:
+                    best_CRPS = CRPS_GP
+                    best_approx = approx
+                    best_kernel = kernel
+                    best_shape = None
+    
+    intercept_train=np.ones(X_train.shape[0])
+    intercept_test=np.ones(X_test.shape[0])
+    if best_kernel=="matern_ard":
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx)
+    else:
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx)
+    
+    gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
+    pred_mu = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
+    pred_std = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['var']
+    crps_values = [crps_gaussian(y_test_np[i], mu=pred_mu[i], sig=pred_std[i]) for i in range(len(y_test))]  
+    CRPS_GP = np.mean(crps_values)
+    print("CRPS GP: ", CRPS_GP)
+
+    crps_results = {'constant': CRPS_constant, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'distributional_boosted_trees': CRPS_boosted_LSS, 'drf': CRPS_drf, 'boosted_trees': CRPS_boosted, 'rf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression, 'GAM': crps_gam, 'GP': CRPS_GP}
+    
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
 
