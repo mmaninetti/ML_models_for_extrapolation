@@ -42,7 +42,7 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 # task_id=361072
 for task_id in benchmark_suite.tasks:
 
-    if task_id<=361072:
+    if task_id<=361075:
         continue
 
     if task_id==361084:
@@ -192,7 +192,7 @@ for task_id in benchmark_suite.tasks:
     d_in=X_train_.shape[1]
 
     #### GP model
-    if task_id==361073:
+    if (task_id==361073) or (task_id==361076):
         RMSE_GP = float("NaN")
     else:
         approximations = ["vecchia", "fitc"]
