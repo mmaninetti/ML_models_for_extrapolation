@@ -267,7 +267,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
 
     #### GAM model
     if task_id==361055:
-        accuracy_GAM = float("NaN")
+        accuracy_gam = float("NaN")
     else:
         def gam_model(trial):
 
