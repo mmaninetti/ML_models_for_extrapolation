@@ -290,7 +290,7 @@ for task_id in benchmark_suite.tasks:
     print("CRPS GAM: ", crps_gam)
 
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_CRPS_results.csv')
+    df = pd.read_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv')
 
     # Add the columns with CRPS of GAM and GP
     df.loc[df['Method'] == 'GAM', 'CRPS'] = crps_gam
@@ -300,4 +300,4 @@ for task_id in benchmark_suite.tasks:
     os.makedirs('RESULTS2/MAHALANOBIS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/MAHALANOBIS/{task_id}_mahalanobis_CRPS_results.csv', index=False)
+    df.to_csv(f'RESULTS2/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv', index=False)
