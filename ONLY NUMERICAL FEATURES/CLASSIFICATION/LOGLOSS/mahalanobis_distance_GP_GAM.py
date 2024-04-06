@@ -214,6 +214,7 @@ for task_id in benchmark_suite.tasks:
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                     logloss_GP = log_loss(y_val, pred_resp)
+                    print("Logloss GP temporary: ", logloss_GP)
                     if logloss_GP < best_logloss:
                         best_logloss = logloss_GP
                         best_approx = approx
@@ -227,6 +228,7 @@ for task_id in benchmark_suite.tasks:
                 gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                 logloss_GP = log_loss(y_val, pred_resp)
+                print("Logloss GP temporary: ", logloss_GP)
                 if logloss_GP < best_logloss:
                     best_logloss = logloss_GP
                     best_approx = approx
