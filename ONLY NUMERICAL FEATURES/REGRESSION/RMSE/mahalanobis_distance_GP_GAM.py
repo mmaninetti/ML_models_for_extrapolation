@@ -203,6 +203,7 @@ for task_id in benchmark_suite.tasks:
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                     RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
+                    print("RMSE GP temporary: ", RMSE_GP)
                     if RMSE_GP < best_RMSE:
                         best_RMSE = RMSE_GP
                         best_approx = approx
@@ -213,6 +214,7 @@ for task_id in benchmark_suite.tasks:
                 gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                 RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
+                print("RMSE GP temporary: ", RMSE_GP)
                 if RMSE_GP < best_RMSE:
                     best_RMSE = RMSE_GP
                     best_approx = approx

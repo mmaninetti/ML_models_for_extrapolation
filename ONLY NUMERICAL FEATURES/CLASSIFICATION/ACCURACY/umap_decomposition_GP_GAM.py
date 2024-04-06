@@ -224,6 +224,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                     pred_resp = np.where(pred_resp >= 0.5, 1, 0)
                     accuracy_GP = accuracy_score(y_val, pred_resp)
+                    print("Accuracy GP temporary: ", accuracy_GP)
                     if accuracy_GP > best_accuracy:
                         best_accuracy = accuracy_GP
                         best_approx = approx
@@ -238,6 +239,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                 pred_resp = np.where(pred_resp >= 0.5, 1, 0)
                 accuracy_GP = accuracy_score(y_val, pred_resp)
+                print("Accuracy GP temporary: ", accuracy_GP)
                 if accuracy_GP > best_accuracy:
                     best_accuracy = accuracy_GP
                     best_approx = approx

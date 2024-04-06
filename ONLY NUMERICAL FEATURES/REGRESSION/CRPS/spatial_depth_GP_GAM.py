@@ -213,6 +213,7 @@ for task_id in benchmark_suite.tasks:
                     pred_std = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['var']
                     crps_values = [crps_gaussian(y_val_np[i], mu=pred_mu[i], sig=pred_std[i]) for i in range(len(y_val))] 
                     CRPS_GP = np.mean(crps_values)
+                    print("CRPS GP temporary: ", CRPS_GP)
                     if CRPS_GP < best_CRPS:
                         best_CRPS = CRPS_GP
                         best_approx = approx
@@ -225,6 +226,7 @@ for task_id in benchmark_suite.tasks:
                 pred_std = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['var']
                 crps_values = [crps_gaussian(y_val_np[i], mu=pred_mu[i], sig=pred_std[i]) for i in range(len(y_val))] 
                 CRPS_GP = np.mean(crps_values)
+                print("CRPS GP temporary: ", CRPS_GP)
                 if CRPS_GP < best_CRPS:
                     best_CRPS = CRPS_GP
                     best_approx = approx
