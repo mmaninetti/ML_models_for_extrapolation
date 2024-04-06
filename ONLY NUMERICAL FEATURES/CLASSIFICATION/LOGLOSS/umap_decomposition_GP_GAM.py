@@ -263,50 +263,53 @@ for task_id in benchmark_suite.tasks:
     print("logloss GP: ", logloss_GP)
 
     #### GAM model
-    def gam_model(trial):
+    if task_id==361055:
+        accuracy_GAM = float("NaN")
+    else:
+        def gam_model(trial):
 
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines=trial.suggest_int('n_splines', 10, 100)
-        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
-        spline_order=trial.suggest_int('spline_order', 1, 5)
-        
-        ## Create and train the model
-        gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
+            # Define the search space for n_splines, lam, and spline_order
+            n_splines=trial.suggest_int('n_splines', 10, 100)
+            lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
+            spline_order=trial.suggest_int('spline_order', 1, 5)
+            
+            ## Create and train the model
+            gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
 
-        # Predict on the validation set and calculate the log loss
-        y_val_hat_gam = gam.predict_proba(X_val)
-        y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
-        y_val_hat_gam_df.fillna(0.5, inplace=True)
-        y_val_hat_gam = y_val_hat_gam_df.values
-        log_loss_gam = log_loss(y_val, y_val_hat_gam)
+            # Predict on the validation set and calculate the log loss
+            y_val_hat_gam = gam.predict_proba(X_val)
+            y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
+            y_val_hat_gam_df.fillna(0.5, inplace=True)
+            y_val_hat_gam = y_val_hat_gam_df.values
+            log_loss_gam = log_loss(y_val, y_val_hat_gam)
 
-        return log_loss_gam
+            return log_loss_gam
 
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
+        # Create the sampler and study
+        sampler_gam = optuna.samplers.TPESampler(seed=seed)
+        study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
 
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
+        # Optimize the model
+        study_gam.optimize(gam_model, n_trials=N_TRIALS)
 
-    # Get the best parameters
-    best_params = study_gam.best_params
-    n_splines=best_params['n_splines']
-    lam=best_params['lam']
-    spline_order=best_params['spline_order']
+        # Get the best parameters
+        best_params = study_gam.best_params
+        n_splines=best_params['n_splines']
+        lam=best_params['lam']
+        spline_order=best_params['spline_order']
 
-    final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
+        final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
 
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
+        # Fit the model
+        final_gam_model.fit(X_train, y_train)
 
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict_proba(X_test)
-    y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
-    y_test_hat_gam_df.fillna(0.5, inplace=True)
-    y_test_hat_gam = y_test_hat_gam_df.values
-    # Calculate the log loss
-    log_loss_gam = log_loss(y_test, y_test_hat_gam)
+        # Predict on the test set
+        y_test_hat_gam = final_gam_model.predict_proba(X_test)
+        y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
+        y_test_hat_gam_df.fillna(0.5, inplace=True)
+        y_test_hat_gam = y_test_hat_gam_df.values
+        # Calculate the log loss
+        log_loss_gam = log_loss(y_test, y_test_hat_gam)
     print("Log Loss GAM: ", log_loss_gam)
 
     # Load the existing DataFrame
