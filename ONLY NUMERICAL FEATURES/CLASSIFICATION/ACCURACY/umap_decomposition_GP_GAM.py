@@ -308,14 +308,14 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
     print("Accuracy GAM: ", accuracy_gam)
 
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/UMAP/{task_id}_umap_decomposition_accuracy_results.csv')
+    df = pd.read_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_accuracy_results.csv')
 
     # Add the columns with accuracy of GAM and GP
     df.loc[df['Method'] == 'GAM', 'Accuracy'] = accuracy_gam
     df.loc[len(df)] = ['GP', accuracy_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/UMAP', exist_ok=True)
+    os.makedirs('RESULTS2/UMAP_DECOMPOSITION', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/UMAP/{task_id}_umap_decomposition_accuracy_results.csv', index=False)
+    df.to_csv(f'RESULTS2/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_accuracy_results.csv', index=False)
