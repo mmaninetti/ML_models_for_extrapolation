@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import setuptools
 import openml
 from sklearn.linear_model import LogisticRegression 
 import lightgbm as lgbm
@@ -9,21 +8,15 @@ from scipy.spatial.distance import mahalanobis
 from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.gaussian_process.kernels import Matern
-from engression import engression, engression_bagged
+from engression import engression
 import torch
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import mahalanobis
-from scipy.stats import norm
-from sklearn.metrics import mean_squared_error
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 import random
-import gpytorch
-import tqdm.auto as tqdm
 import os
-from pygam import LogisticGAM, s
+from pygam import LogisticGAM
 import torch
-from torch import nn
-from torch.optim import Adam
 from sklearn.metrics import log_loss
 from sklearn.preprocessing import LabelEncoder
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
@@ -352,7 +345,7 @@ for task_id in benchmark_suite.tasks:
     df.loc[len(df)] = ['GP', logloss_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/CLUSTERING', exist_ok=True)
+    os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/CLUSTERING/{task_id}_clustering_logloss_results.csv', index=False)
+    df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_logloss_results.csv', index=False)

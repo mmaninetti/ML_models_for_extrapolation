@@ -1,25 +1,16 @@
 import pandas as pd
 import numpy as np
-import setuptools
 import openml
 from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
 import optuna
 from scipy.spatial.distance import mahalanobis
-from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.gaussian_process.kernels import Matern
-from engression import engression, engression_bagged
+from engression import engression
 import torch
-from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import mahalanobis
-from scipy.stats import norm
-from sklearn.metrics import mean_squared_error
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
-from properscoring import crps_gaussian, crps_ensemble
 import random
-import gpytorch
-import tqdm.auto as tqdm
 import os
 from pygam import LinearGAM, s, f
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
@@ -76,6 +67,9 @@ for task_id in benchmark_suite.tasks:
         indices = np.random.choice(X.index, size=15000, replace=False)
         X = X.iloc[indices,]
         y = y[indices]
+
+    if (task_id==361082) or (task_id==361088):
+        y=np.log(y)
 
     # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
     # Remove non-categorical columns with more than 70% of the data in one category from X_clean
@@ -288,7 +282,7 @@ for task_id in benchmark_suite.tasks:
     df.loc[len(df)] = ['GP', RMSE_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/MAHALANOBIS', exist_ok=True)
+    os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv', index=False)
+    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv', index=False)
