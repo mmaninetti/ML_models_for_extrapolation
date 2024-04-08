@@ -297,7 +297,7 @@ for task_id in benchmark_suite.tasks:
     df.loc[len(df)] = ['GP', accuracy_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/MAHALANOBIS', exist_ok=True)
+    os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/MAHALANOBIS/{task_id}_mahalanobis_accuracy_results.csv', index=False)
+    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_accuracy_results.csv', index=False)

@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import openml
@@ -9,13 +10,16 @@ from sklearn.ensemble import RandomForestRegressor
 from engression import engression
 import torch
 from scipy.spatial.distance import mahalanobis
+from scipy.stats import norm
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
+from properscoring import crps_gaussian, crps_ensemble
 import random
-import os
-from pygam import LinearGAM, s, f
+from lightgbmlss.model import *
+from lightgbmlss.distributions.Gaussian import *
+from pygam import LinearGAM
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
-import re
+from drf import drf
 import shutil
 import gpboost as gpb
 
@@ -30,7 +34,7 @@ SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-# task_id=361072
+#task_id=361072
 for task_id in benchmark_suite.tasks:
 
     if task_id==361084:
@@ -147,10 +151,9 @@ for task_id in benchmark_suite.tasks:
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
     X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
-
+    
     # Convert to use GPU if available
     if torch.cuda.is_available():
-        print("Using GPU")
         X_train__tensor = X_train__tensor.cuda()
         y_train__tensor = y_train__tensor.cuda()
         X_train_tensor = X_train_tensor.cuda()
@@ -159,8 +162,6 @@ for task_id in benchmark_suite.tasks:
         y_val_tensor = y_val_tensor.cuda()
         X_test_tensor = X_test_tensor.cuda()
         y_test_tensor = y_test_tensor.cuda()
-    else:
-        print("Using CPU")
 
     # Create flattened versions of the data
     y_val_np = y_val.values.flatten()
@@ -181,7 +182,7 @@ for task_id in benchmark_suite.tasks:
     # Define d_out and d_in
     d_out = 1  
     d_in=X_train_.shape[1]
-
+    
     #### GAM model
     def gam_model(trial):
 
@@ -193,11 +194,14 @@ for task_id in benchmark_suite.tasks:
         # Create and train the model
         gam = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
 
-        # Predict on the validation set and calculate the RMSE
+        # Predict on the validation set and calculate the CRPS
+        y_train__hat_gam = gam.predict(X_train_)
+        std_dev_error = np.std(y_train_ - y_train__hat_gam)
         y_val_hat_gam = gam.predict(X_val)
-        RMSE_gam = np.sqrt(np.mean((y_val - y_val_hat_gam) ** 2))
+        crps_gam = [crps_gaussian(y_val_np[i], mu=y_val_hat_gam[i], sig=std_dev_error) for i in range(len(y_val_hat_gam))]
+        crps_gam = np.mean(crps_gam)
 
-        return RMSE_gam
+        return crps_gam
 
     # Create the sampler and study
     sampler_gam = optuna.samplers.TPESampler(seed=seed)
@@ -217,20 +221,26 @@ for task_id in benchmark_suite.tasks:
     # Fit the model
     final_gam_model.fit(X_train, y_train)
 
+    # Predict on the train set
+    y_train_hat_gam = final_gam_model.predict(X_train)
+    std_dev_error = np.std(y_train - y_train_hat_gam)
+
     # Predict on the test set
     y_test_hat_gam = final_gam_model.predict(X_test)
-    # Calculate the RMSE
-    RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
-    print("RMSE GAM: ", RMSE_gam)
+
+    # Calculate the CRPS
+    crps_gam = [crps_gaussian(y_test_np[i], mu=y_test_hat_gam[i], sig=std_dev_error) for i in range(len(y_test_hat_gam))]
+    crps_gam = np.mean(crps_gam)
+    print("CRPS GAM: ", crps_gam)
 
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv')
+    df = pd.read_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv')
 
-    # Add the columns with RMSE of GAM and GP
-    df.loc[df['Method'] == 'GAM', 'RMSE'] = RMSE_gam
+    # Add the columns with CRPS of GAM and GP
+    df.loc[df['Method'] == 'GAM', 'CRPS'] = crps_gam
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv', index=False)
+    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_crps_results.csv', index=False)

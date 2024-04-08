@@ -345,7 +345,7 @@ for task_id in benchmark_suite.tasks:
     df.loc[len(df)] = ['GP', logloss_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/CLUSTERING', exist_ok=True)
+    os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/CLUSTERING/{task_id}_clustering_logloss_results.csv', index=False)
+    df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_logloss_results.csv', index=False)

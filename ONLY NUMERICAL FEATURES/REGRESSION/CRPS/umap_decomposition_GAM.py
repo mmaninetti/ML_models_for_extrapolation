@@ -1,28 +1,32 @@
+from umap import UMAP
+import os
 import pandas as pd
 import numpy as np
 import openml
 from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
 import optuna
-from scipy.spatial.distance import mahalanobis
 from sklearn.ensemble import RandomForestRegressor
 from engression import engression
 import torch
-from scipy.spatial.distance import mahalanobis
+from scipy.stats import norm
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
+from properscoring import crps_gaussian, crps_ensemble
 import random
-import os
-from pygam import LinearGAM, s, f
+from lightgbmlss.model import *
+from lightgbmlss.distributions.Gaussian import *
+from drf import drf
+from sklearn.metrics.pairwise import euclidean_distances
+from pygam import LinearGAM
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
-import re
 import shutil
 import gpboost as gpb
 
 # Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/MAHALANOBIS'):
-    shutil.rmtree('CHECKPOINTS/MAHALANOBIS')
-os.makedirs('CHECKPOINTS/MAHALANOBIS')
+if os.path.exists('CHECKPOINTS/UMAP'):
+    shutil.rmtree('CHECKPOINTS/UMAP')
+os.makedirs('CHECKPOINTS/UMAP')
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -30,11 +34,8 @@ SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-# task_id=361072
+#task_id=361072
 for task_id in benchmark_suite.tasks:
-
-    if task_id==361084:
-        continue
 
     # Set the random seed for reproducibility
     N_TRIALS=100
@@ -52,7 +53,7 @@ for task_id in benchmark_suite.tasks:
 
     print(f"Task {task_id}")
 
-    CHECKPOINT_PATH = f'CHECKPOINTS/MAHALANOBIS/task_{task_id}.pt'
+    CHECKPOINT_PATH = f'CHECKPOINTS/UMAP/task_{task_id}.pt'
 
     task = openml.tasks.get_task(task_id)  # download the OpenML task
     dataset = task.get_dataset()
@@ -94,16 +95,19 @@ for task_id in benchmark_suite.tasks:
     X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 
 
-    # calculate the mean and covariance matrix of the dataset
-    mean = np.mean(X_clean, axis=0)
-    cov = np.cov(X_clean.T)
+    # Apply UMAP decomposition
+    umap = UMAP(n_components=2, random_state=42)
+    X_umap = umap.fit_transform(X_clean)
 
-    # calculate the Mahalanobis distance for each data point
-    mahalanobis_dist = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_clean.values]
+    # calculate the Euclidean distance matrix
+    euclidean_dist_matrix = euclidean_distances(X_umap)
 
-    mahalanobis_dist=pd.Series(mahalanobis_dist,index=X_clean.index)
-    far_index=mahalanobis_dist.index[np.where(mahalanobis_dist>=np.quantile(mahalanobis_dist,0.8))[0]]
-    close_index=mahalanobis_dist.index[np.where(mahalanobis_dist<np.quantile(mahalanobis_dist,0.8))[0]]
+    # calculate the Euclidean distance for each data point
+    euclidean_dist = np.mean(euclidean_dist_matrix, axis=1)
+
+    euclidean_dist = pd.Series(euclidean_dist, index=X_clean.index)
+    far_index = euclidean_dist.index[np.where(euclidean_dist >= np.quantile(euclidean_dist, 0.8))[0]]
+    close_index = euclidean_dist.index[np.where(euclidean_dist < np.quantile(euclidean_dist, 0.8))[0]]
 
     X_train_clean = X_clean.loc[close_index,:]
     X_train = X.loc[close_index,:]
@@ -111,20 +115,24 @@ for task_id in benchmark_suite.tasks:
     y_train = y.loc[close_index]
     y_test = y.loc[far_index]
 
-    mean = np.mean(X_train_clean, axis=0)
-    cov = np.cov(X_train_clean.T)
+    # Apply UMAP decomposition on the training set
+    X_umap_train = umap.fit_transform(X_train_clean)
 
-    # calculate the Mahalanobis distance for each data point
-    mahalanobis_dist_ = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_train_clean.values]
+    # calculate the Euclidean distance matrix for the training set
+    euclidean_dist_matrix_train = euclidean_distances(X_umap_train)
 
-    mahalanobis_dist_=pd.Series(mahalanobis_dist_,index=X_train_clean.index)
-    far_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_>=np.quantile(mahalanobis_dist_,0.8))[0]]
-    close_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_<np.quantile(mahalanobis_dist_,0.8))[0]]
+    # calculate the Euclidean distance for each data point in the training set
+    euclidean_dist_train = np.mean(euclidean_dist_matrix_train, axis=1)
 
-    X_train_ = X_train.loc[close_index_,:]
-    X_val = X_train.loc[far_index_,:]
-    y_train_ = y_train.loc[close_index_]
-    y_val = y_train.loc[far_index_]
+    euclidean_dist_train = pd.Series(euclidean_dist_train, index=X_train_clean.index)
+    far_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train >= np.quantile(euclidean_dist_train, 0.8))[0]]
+    close_index_train = euclidean_dist_train.index[np.where(euclidean_dist_train < np.quantile(euclidean_dist_train, 0.8))[0]]
+
+    X_train_ = X_train.loc[close_index_train,:]
+    X_val = X_train.loc[far_index_train,:]
+    y_train_ = y_train.loc[close_index_train]
+    y_val = y_train.loc[far_index_train]
+
 
     # Standardize the data
     mean_X_train_ = np.mean(X_train_, axis=0)
@@ -150,7 +158,6 @@ for task_id in benchmark_suite.tasks:
 
     # Convert to use GPU if available
     if torch.cuda.is_available():
-        print("Using GPU")
         X_train__tensor = X_train__tensor.cuda()
         y_train__tensor = y_train__tensor.cuda()
         X_train_tensor = X_train_tensor.cuda()
@@ -159,8 +166,6 @@ for task_id in benchmark_suite.tasks:
         y_val_tensor = y_val_tensor.cuda()
         X_test_tensor = X_test_tensor.cuda()
         y_test_tensor = y_test_tensor.cuda()
-    else:
-        print("Using CPU")
 
     # Create flattened versions of the data
     y_val_np = y_val.values.flatten()
@@ -193,11 +198,14 @@ for task_id in benchmark_suite.tasks:
         # Create and train the model
         gam = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
 
-        # Predict on the validation set and calculate the RMSE
+        # Predict on the validation set and calculate the CRPS
+        y_train__hat_gam = gam.predict(X_train_)
+        std_dev_error = np.std(y_train_ - y_train__hat_gam)
         y_val_hat_gam = gam.predict(X_val)
-        RMSE_gam = np.sqrt(np.mean((y_val - y_val_hat_gam) ** 2))
+        crps_gam = [crps_gaussian(y_val_np[i], mu=y_val_hat_gam[i], sig=std_dev_error) for i in range(len(y_val_hat_gam))]
+        crps_gam = np.mean(crps_gam)
 
-        return RMSE_gam
+        return crps_gam
 
     # Create the sampler and study
     sampler_gam = optuna.samplers.TPESampler(seed=seed)
@@ -217,20 +225,26 @@ for task_id in benchmark_suite.tasks:
     # Fit the model
     final_gam_model.fit(X_train, y_train)
 
+    # Predict on the train set
+    y_train_hat_gam = final_gam_model.predict(X_train)
+    std_dev_error = np.std(y_train - y_train_hat_gam)
+
     # Predict on the test set
     y_test_hat_gam = final_gam_model.predict(X_test)
-    # Calculate the RMSE
-    RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
-    print("RMSE GAM: ", RMSE_gam)
+
+    # Calculate the CRPS
+    crps_gam = [crps_gaussian(y_test_np[i], mu=y_test_hat_gam[i], sig=std_dev_error) for i in range(len(y_test_hat_gam))]
+    crps_gam = np.mean(crps_gam)
+    print("CRPS GAM: ", crps_gam)
 
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv')
+    df = pd.read_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_crps_results.csv')
 
-    # Add the columns with RMSE of GAM and GP
-    df.loc[df['Method'] == 'GAM', 'RMSE'] = RMSE_gam
+    # Add the columns with CRPS of GAM and GP
+    df.loc[df['Method'] == 'GAM', 'CRPS'] = crps_gam
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
+    os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv', index=False)
+    df.to_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_crps_results.csv', index=False)

@@ -286,7 +286,7 @@ for task_id in benchmark_suite.tasks:
     df.loc[len(df)] = ['GP', RMSE_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/SPATIAL_DEPTH', exist_ok=True)
+    os.makedirs('RESULTS/SPATIAL_DEPTH', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/SPATIAL_DEPTH/{task_id}_spatial_depth_RMSE_results.csv', index=False)
+    df.to_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_RMSE_results.csv', index=False)
