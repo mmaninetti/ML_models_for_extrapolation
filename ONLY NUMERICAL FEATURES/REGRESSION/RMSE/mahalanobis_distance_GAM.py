@@ -33,9 +33,6 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 # task_id=361072
 for task_id in benchmark_suite.tasks:
 
-    if task_id<=361075:
-        continue
-
     if task_id==361084:
         continue
 
@@ -63,13 +60,13 @@ for task_id in benchmark_suite.tasks:
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
     
+    if (task_id==361082) or (task_id==361088):
+        y=np.log(y)
+    
     if len(X) > 15000:
         indices = np.random.choice(X.index, size=15000, replace=False)
         X = X.iloc[indices,]
         y = y[indices]
-
-    if (task_id==361082) or (task_id==361088):
-        y=np.log(y)
 
     # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
     # Remove non-categorical columns with more than 70% of the data in one category from X_clean
@@ -185,54 +182,6 @@ for task_id in benchmark_suite.tasks:
     d_out = 1  
     d_in=X_train_.shape[1]
 
-    #### GP model
-    if (task_id==361073) or (task_id==361076):
-        RMSE_GP = float("NaN")
-    else:
-        approximations = ["vecchia", "fitc"]
-        kernels = ["matern_ard", "gaussian_ard"]
-        shapes = [0.5, 1.5, 2.5]
-        best_RMSE = float('inf')    
-        intercept_train=np.ones(X_train_.shape[0])
-        intercept_val=np.ones(X_val.shape[0])
-        for approx in approximations:
-            for kernel in kernels:
-                if kernel=="matern_ard":
-                    for shape in shapes:
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx)
-                        gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                        pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
-                        RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
-                        print("RMSE GP temporary: ", RMSE_GP)
-                        if RMSE_GP < best_RMSE:
-                            best_RMSE = RMSE_GP
-                            best_approx = approx
-                            best_kernel = kernel
-                            best_shape = shape
-                else:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx)
-                    gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                    pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
-                    RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
-                    print("RMSE GP temporary: ", RMSE_GP)
-                    if RMSE_GP < best_RMSE:
-                        best_RMSE = RMSE_GP
-                        best_approx = approx
-                        best_kernel = kernel
-                        best_shape = None
-        
-        intercept_train=np.ones(X_train.shape[0])
-        intercept_test=np.ones(X_test.shape[0])
-        if best_kernel=="matern_ard":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx)
-        else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx)
-        
-        gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
-        pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
-        RMSE_GP = np.sqrt(np.mean((y_test-pred_resp)**2))    
-    print("RMSE GP: ", RMSE_GP)
-
     #### GAM model
     def gam_model(trial):
 
@@ -279,7 +228,6 @@ for task_id in benchmark_suite.tasks:
 
     # Add the columns with RMSE of GAM and GP
     df.loc[df['Method'] == 'GAM', 'RMSE'] = RMSE_gam
-    df.loc[len(df)] = ['GP', RMSE_GP]
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS2/MAHALANOBIS', exist_ok=True)

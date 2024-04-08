@@ -2,20 +2,17 @@ from umap import UMAP
 import pandas as pd
 import numpy as np
 import openml
-from sklearn.linear_model import LogisticRegression 
+from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
 import optuna
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 from engression import engression
 import torch
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 import random
-import os
-from pygam import LogisticGAM
-import torch
-from sklearn.metrics import accuracy_score
 from sklearn.metrics.pairwise import euclidean_distances
-from sklearn.preprocessing import LabelEncoder
+import os
+from pygam import LinearGAM
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import re
@@ -27,17 +24,13 @@ if os.path.exists('CHECKPOINTS/UMAP'):
     shutil.rmtree('CHECKPOINTS/UMAP')
 os.makedirs('CHECKPOINTS/UMAP')
 
-#SUITE_ID = 336 # Regression on numerical features
-SUITE_ID = 337 # Classification on numerical features
+SUITE_ID = 336 # Regression on numerical features
+#SUITE_ID = 337 # Classification on numerical features
 #SUITE_ID = 335 # Regression on numerical and categorical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-#task_id=361055
-for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark suite
-
-    if task_id==361276:
-        continue
+for task_id in benchmark_suite.tasks:
 
     # Set the random seed for reproducibility
     N_TRIALS=100
@@ -52,16 +45,19 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
-    
-    CHECKPOINT_PATH = f'CHECKPOINTS/UMAP/task_{task_id}.pt'
 
     print(f"Task {task_id}")
+
+    CHECKPOINT_PATH = f'CHECKPOINTS/UMAP/task_{task_id}.pt'
 
     task = openml.tasks.get_task(task_id)  # download the OpenML task
     dataset = task.get_dataset()
 
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
+    
+    if (task_id==361082) or (task_id==361088):
+        y=np.log(y)
     
     if len(X) > 15000:
         indices = np.random.choice(X.index, size=15000, replace=False)
@@ -92,14 +88,6 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
 
     # Rename columns to avoid problems with LGBM
     X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
-
-    # Transform y to int type, to then be able to apply BCEWithLogitsLoss
-    # Create a label encoder
-    le = LabelEncoder()
-    # Fit the label encoder and transform y to get binary labels
-    y_encoded = le.fit_transform(y)
-    # Convert the result back to a pandas Series
-    y = pd.Series(y_encoded, index=y.index)
 
 
     # Apply UMAP decomposition
@@ -140,7 +128,6 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
     y_train_ = y_train.loc[close_index_train]
     y_val = y_train.loc[far_index_train]
 
-
     # Standardize the data
     mean_X_train_ = np.mean(X_train_, axis=0)
     std_X_train_ = np.std(X_train_, axis=0)
@@ -165,6 +152,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
 
     # Convert to use GPU if available
     if torch.cuda.is_available():
+        print("Using GPU")
         X_train__tensor = X_train__tensor.cuda()
         y_train__tensor = y_train__tensor.cuda()
         X_train_tensor = X_train_tensor.cuda()
@@ -173,6 +161,8 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
         y_val_tensor = y_val_tensor.cuda()
         X_test_tensor = X_test_tensor.cuda()
         y_test_tensor = y_test_tensor.cuda()
+    else:
+        print("Using CPU")
 
     # Create flattened versions of the data
     y_val_np = y_val.values.flatten()
@@ -190,123 +180,59 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
+    # Define d_out and d_in
     d_out = 1  
     d_in=X_train_.shape[1]
 
-    #### GP model
-    approximations = ["vecchia", "fitc"]
-    kernels = ["matern_ard", "gaussian_ard"]
-    shapes = [0.5, 1.5, 2.5]
-    best_accuracy = 0  
-    intercept_train=np.ones(X_train_.shape[0])
-    intercept_val=np.ones(X_val.shape[0])
-    for approx in approximations:
-        for kernel in kernels:
-            if kernel=="matern_ard":
-                for shape in shapes:
-                    if approx=="vecchia":
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
-                    else:
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx)
-                    gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                    pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
-                    pred_resp = np.where(pred_resp >= 0.5, 1, 0)
-                    accuracy_GP = accuracy_score(y_val, pred_resp)
-                    print("Accuracy GP temporary: ", accuracy_GP)
-                    if accuracy_GP > best_accuracy:
-                        best_accuracy = accuracy_GP
-                        best_approx = approx
-                        best_kernel = kernel
-                        best_shape = shape
-            else:
-                if approx=="vecchia":
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
-                else:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx)
-                gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
-                pred_resp = np.where(pred_resp >= 0.5, 1, 0)
-                accuracy_GP = accuracy_score(y_val, pred_resp)
-                print("Accuracy GP temporary: ", accuracy_GP)
-                if accuracy_GP > best_accuracy:
-                    best_accuracy = accuracy_GP
-                    best_approx = approx
-                    best_kernel = kernel
-                    best_shape = None
-    
-    intercept_train=np.ones(X_train.shape[0])
-    intercept_test=np.ones(X_test.shape[0])
-    if best_kernel=="matern_ard":
-        if approx=="vecchia":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
-        else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx)
-    else:
-        if approx=="vecchia":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
-        else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx)
-
-    gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
-    pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=False, predict_response=True)['mu']
-    pred_resp = np.where(pred_resp >= 0.5, 1, 0)
-    accuracy_GP = accuracy_score(y_test, pred_resp)    
-    print("accuracy GP: ", accuracy_GP)
-
     #### GAM model
-    if task_id==361055:
-        accuracy_gam = float("NaN")
-    else:
-        def gam_model(trial):
+    def gam_model(trial):
 
-            # Define the search space for n_splines, lam, and spline_order
-            n_splines=trial.suggest_int('n_splines', 10, 100)
-            lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
-            spline_order=trial.suggest_int('spline_order', 1, 5)
-            
-            # Create and train the model
-            gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-            # Predict on the validation set and calculate the accuracy
-            y_val_hat_gam = gam.predict(X_val)
-            accuracy_gam = accuracy_score(y_val, y_val_hat_gam)
-
-            return accuracy_gam
-
-        # Create the sampler and study
-        sampler_gam = optuna.samplers.TPESampler(seed=seed)
-        study_gam = optuna.create_study(sampler=sampler_gam, direction='maximize')
-
-        # Optimize the model
-        study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-        # Get the best parameters
-        best_params = study_gam.best_params
-        n_splines=best_params['n_splines']
-        lam=best_params['lam']
-        spline_order=best_params['spline_order']
-
-        final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-        # Fit the model
-        final_gam_model.fit(X_train, y_train)
-
-        # Predict on the test set
-        y_test_hat_gam = final_gam_model.predict(X_test)
+        # Define the search space for n_splines, lam, and spline_order
+        n_splines=trial.suggest_int('n_splines', 10, 100)
+        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
+        spline_order=trial.suggest_int('spline_order', 1, 5)
         
-        # Calculate the accuracy
-        accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
-    print("Accuracy GAM: ", accuracy_gam)
+        # Create and train the model
+        gam = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
+
+        # Predict on the validation set and calculate the RMSE
+        y_val_hat_gam = gam.predict(X_val)
+        RMSE_gam = np.sqrt(np.mean((y_val - y_val_hat_gam) ** 2))
+
+        return RMSE_gam
+
+    # Create the sampler and study
+    sampler_gam = optuna.samplers.TPESampler(seed=seed)
+    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
+
+    # Optimize the model
+    study_gam.optimize(gam_model, n_trials=N_TRIALS)
+
+    # Get the best parameters
+    best_params = study_gam.best_params
+    n_splines=best_params['n_splines']
+    lam=best_params['lam']
+    spline_order=best_params['spline_order']
+
+    final_gam_model = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
+
+    # Fit the model
+    final_gam_model.fit(X_train, y_train)
+
+    # Predict on the test set
+    y_test_hat_gam = final_gam_model.predict(X_test)
+    # Calculate the RMSE
+    RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
+    print("RMSE GAM: ", RMSE_gam)
 
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_accuracy_results.csv')
+    df = pd.read_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_RMSE_results.csv')
 
-    # Add the columns with accuracy of GAM and GP
-    df.loc[df['Method'] == 'GAM', 'Accuracy'] = accuracy_gam
-    df.loc[len(df)] = ['GP', accuracy_GP]
+    # Add the columns with RMSE of GAM and GP
+    df.loc[df['Method'] == 'GAM', 'RMSE'] = RMSE_gam
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS2/UMAP_DECOMPOSITION', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_accuracy_results.csv', index=False)
+    df.to_csv(f'RESULTS2/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_RMSE_results.csv', index=False)

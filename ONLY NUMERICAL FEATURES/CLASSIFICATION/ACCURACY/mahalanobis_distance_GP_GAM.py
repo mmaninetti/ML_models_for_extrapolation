@@ -1,29 +1,20 @@
 import pandas as pd
 import numpy as np
-import setuptools
 import openml
 from sklearn.linear_model import LogisticRegression 
 import lightgbm as lgbm
 import optuna
 from scipy.spatial.distance import mahalanobis
-from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.gaussian_process.kernels import Matern
-from engression import engression, engression_bagged
+from engression import engression
 import torch
-from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import mahalanobis
-from scipy.stats import norm
-from sklearn.metrics import mean_squared_error
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 import random
-import gpytorch
-import tqdm.auto as tqdm
 import os
-from pygam import LogisticGAM, s
+from pygam import LogisticGAM
 import torch
-from torch import nn
-from torch.optim import Adam
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder 
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping

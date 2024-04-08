@@ -4,15 +4,16 @@ import openml
 from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
 import optuna
-from scipy.spatial.distance import mahalanobis
+from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
 from engression import engression
 import torch
+from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import mahalanobis
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 import random
 import os
-from pygam import LinearGAM, s, f
+from pygam import LinearGAM
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import re
@@ -20,9 +21,9 @@ import shutil
 import gpboost as gpb
 
 # Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/MAHALANOBIS'):
-    shutil.rmtree('CHECKPOINTS/MAHALANOBIS')
-os.makedirs('CHECKPOINTS/MAHALANOBIS')
+if os.path.exists('CHECKPOINTS/CLUSTERING'):
+    shutil.rmtree('CHECKPOINTS/CLUSTERING')
+os.makedirs('CHECKPOINTS/CLUSTERING')
 
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
@@ -30,14 +31,8 @@ SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 334 # Classification on numerical and categorical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
-# task_id=361072
+#task_id=361072
 for task_id in benchmark_suite.tasks:
-
-    if task_id<=361075:
-        continue
-
-    if task_id==361084:
-        continue
 
     # Set the random seed for reproducibility
     N_TRIALS=100
@@ -55,7 +50,7 @@ for task_id in benchmark_suite.tasks:
 
     print(f"Task {task_id}")
 
-    CHECKPOINT_PATH = f'CHECKPOINTS/MAHALANOBIS/task_{task_id}.pt'
+    CHECKPOINT_PATH = f'CHECKPOINTS/CLUSTERING/task_{task_id}.pt'
 
     task = openml.tasks.get_task(task_id)  # download the OpenML task
     dataset = task.get_dataset()
@@ -63,13 +58,13 @@ for task_id in benchmark_suite.tasks:
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
     
+    if (task_id==361082) or (task_id==361088):
+        y=np.log(y)
+    
     if len(X) > 15000:
         indices = np.random.choice(X.index, size=15000, replace=False)
         X = X.iloc[indices,]
         y = y[indices]
-
-    if (task_id==361082) or (task_id==361088):
-        y=np.log(y)
 
     # Remove categorical columns with more than 20 unique values and non-categorical columns with less than 10 unique values
     # Remove non-categorical columns with more than 70% of the data in one category from X_clean
@@ -96,17 +91,38 @@ for task_id in benchmark_suite.tasks:
     # Rename columns to avoid problems with LGBM
     X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 
-
+    # New new implementation
+    N_CLUSTERS=20
     # calculate the mean and covariance matrix of the dataset
     mean = np.mean(X_clean, axis=0)
     cov = np.cov(X_clean.T)
+    scaler = StandardScaler()
 
-    # calculate the Mahalanobis distance for each data point
-    mahalanobis_dist = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_clean.values]
+    # transform data to compute the clusters
+    X_clean_scaled = scaler.fit_transform(X_clean)
 
-    mahalanobis_dist=pd.Series(mahalanobis_dist,index=X_clean.index)
-    far_index=mahalanobis_dist.index[np.where(mahalanobis_dist>=np.quantile(mahalanobis_dist,0.8))[0]]
-    close_index=mahalanobis_dist.index[np.where(mahalanobis_dist<np.quantile(mahalanobis_dist,0.8))[0]]
+    kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_clean_scaled)
+    distances=[]
+    mahalanobis_dist=[]
+    counts=[]
+    ideal_len=len(kmeans.labels_)/5
+    for i in np.arange(N_CLUSTERS):
+        distances.append(np.abs(np.sum(kmeans.labels_==i)-ideal_len))
+        counts.append(np.sum(kmeans.labels_==i))
+        mean_k= np.mean(X_clean.loc[kmeans.labels_==i,:], axis=0)
+        mahalanobis_dist.append(mahalanobis(mean_k, mean, np.linalg.inv(cov)))
+
+    dist_df=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist, 'count': counts}, index=np.arange(N_CLUSTERS))
+    dist_df=dist_df.sort_values('mahalanobis_dist', ascending=False)
+    dist_df['cumulative_count']=dist_df['count'].cumsum()
+    dist_df['abs_diff']=np.abs(dist_df['cumulative_count']-ideal_len)
+
+    final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
+    labelss=dist_df.index[0:final+1].to_list()
+    labels=pd.Series(kmeans.labels_).isin(labelss)
+    labels.index=X_clean.index
+    close_index=labels.index[np.where(labels==False)[0]]
+    far_index=labels.index[np.where(labels==True)[0]]
 
     X_train_clean = X_clean.loc[close_index,:]
     X_train = X.loc[close_index,:]
@@ -114,20 +130,42 @@ for task_id in benchmark_suite.tasks:
     y_train = y.loc[close_index]
     y_test = y.loc[far_index]
 
-    mean = np.mean(X_train_clean, axis=0)
-    cov = np.cov(X_train_clean.T)
+    # calculate the mean and covariance matrix of the dataset
+    mean_ = np.mean(X_train_clean, axis=0)
+    cov_ = np.cov(X_train_clean.T)
+    scaler_ = StandardScaler()
 
-    # calculate the Mahalanobis distance for each data point
-    mahalanobis_dist_ = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_train_clean.values]
+    # transform data to compute the clusters
+    X_train_clean_scaled = scaler_.fit_transform(X_train_clean)
 
-    mahalanobis_dist_=pd.Series(mahalanobis_dist_,index=X_train_clean.index)
-    far_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_>=np.quantile(mahalanobis_dist_,0.8))[0]]
-    close_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_<np.quantile(mahalanobis_dist_,0.8))[0]]
+    kmeans_ = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_train_clean_scaled)
+    distances_=[]
+    counts_=[]
+    mahalanobis_dist_=[]
+    ideal_len_=len(kmeans_.labels_)/5
+    for i in np.arange(N_CLUSTERS):
+        distances_.append(np.abs(np.sum(kmeans_.labels_==i)-ideal_len_))
+        counts_.append(np.sum(kmeans_.labels_==i))
+        mean_k_= np.mean(X_train_clean.loc[kmeans_.labels_==i,:], axis=0)
+        mahalanobis_dist_.append(mahalanobis(mean_k_, mean_, np.linalg.inv(cov_)))
+
+    dist_df_=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist_, 'count': counts_}, index=np.arange(N_CLUSTERS))
+    dist_df_=dist_df_.sort_values('mahalanobis_dist', ascending=False)
+    dist_df_['cumulative_count']=dist_df_['count'].cumsum()
+    dist_df_['abs_diff']=np.abs(dist_df_['cumulative_count']-ideal_len_)
+
+    final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
+    labelss_=dist_df_.index[0:final_+1].to_list()
+    labels_=pd.Series(kmeans_.labels_).isin(labelss_)
+    labels_.index=X_train_clean.index
+    close_index_=labels_.index[np.where(labels_==False)[0]]
+    far_index_=labels_.index[np.where(labels_==True)[0]]
 
     X_train_ = X_train.loc[close_index_,:]
     X_val = X_train.loc[far_index_,:]
     y_train_ = y_train.loc[close_index_]
     y_val = y_train.loc[far_index_]
+
 
     # Standardize the data
     mean_X_train_ = np.mean(X_train_, axis=0)
@@ -185,54 +223,6 @@ for task_id in benchmark_suite.tasks:
     d_out = 1  
     d_in=X_train_.shape[1]
 
-    #### GP model
-    if (task_id==361073) or (task_id==361076):
-        RMSE_GP = float("NaN")
-    else:
-        approximations = ["vecchia", "fitc"]
-        kernels = ["matern_ard", "gaussian_ard"]
-        shapes = [0.5, 1.5, 2.5]
-        best_RMSE = float('inf')    
-        intercept_train=np.ones(X_train_.shape[0])
-        intercept_val=np.ones(X_val.shape[0])
-        for approx in approximations:
-            for kernel in kernels:
-                if kernel=="matern_ard":
-                    for shape in shapes:
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx)
-                        gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                        pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
-                        RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
-                        print("RMSE GP temporary: ", RMSE_GP)
-                        if RMSE_GP < best_RMSE:
-                            best_RMSE = RMSE_GP
-                            best_approx = approx
-                            best_kernel = kernel
-                            best_shape = shape
-                else:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx)
-                    gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                    pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
-                    RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
-                    print("RMSE GP temporary: ", RMSE_GP)
-                    if RMSE_GP < best_RMSE:
-                        best_RMSE = RMSE_GP
-                        best_approx = approx
-                        best_kernel = kernel
-                        best_shape = None
-        
-        intercept_train=np.ones(X_train.shape[0])
-        intercept_test=np.ones(X_test.shape[0])
-        if best_kernel=="matern_ard":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx)
-        else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx)
-        
-        gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
-        pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
-        RMSE_GP = np.sqrt(np.mean((y_test-pred_resp)**2))    
-    print("RMSE GP: ", RMSE_GP)
-
     #### GAM model
     def gam_model(trial):
 
@@ -275,14 +265,13 @@ for task_id in benchmark_suite.tasks:
     print("RMSE GAM: ", RMSE_gam)
 
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv')
+    df = pd.read_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_RMSE_results.csv')
 
     # Add the columns with RMSE of GAM and GP
     df.loc[df['Method'] == 'GAM', 'RMSE'] = RMSE_gam
-    df.loc[len(df)] = ['GP', RMSE_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS2/MAHALANOBIS', exist_ok=True)
+    os.makedirs('RESULTS2/CLUSTERING', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS2/MAHALANOBIS/{task_id}_mahalanobis_RMSE_results.csv', index=False)
+    df.to_csv(f'RESULTS2/CLUSTERING/{task_id}_clustering_RMSE_results.csv', index=False)

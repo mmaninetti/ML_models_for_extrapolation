@@ -1,26 +1,18 @@
 from umap import UMAP
 import pandas as pd
 import numpy as np
-import setuptools
 import openml
 from sklearn.linear_model import LinearRegression 
 import lightgbm as lgbm
 import optuna
-from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.gaussian_process.kernels import Matern
-from engression import engression, engression_bagged
+from engression import engression
 import torch
-from scipy.stats import norm
-from sklearn.metrics import mean_squared_error
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
-from properscoring import crps_gaussian, crps_ensemble
 import random
-import gpytorch
-import tqdm.auto as tqdm
 from sklearn.metrics.pairwise import euclidean_distances
 import os
-from pygam import LinearGAM, s, f
+from pygam import LinearGAM
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import re
@@ -63,6 +55,9 @@ for task_id in benchmark_suite.tasks:
 
     X, y, categorical_indicator, attribute_names = dataset.get_data(
             dataset_format="dataframe", target=dataset.default_target_attribute)
+    
+    if (task_id==361082) or (task_id==361088):
+        y=np.log(y)
     
     if len(X) > 15000:
         indices = np.random.choice(X.index, size=15000, replace=False)
