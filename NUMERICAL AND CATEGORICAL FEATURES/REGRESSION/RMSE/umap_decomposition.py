@@ -28,7 +28,7 @@ from drf import drf
 import os
 from pygam import LinearGAM, s, f
 from sklearn.metrics.pairwise import euclidean_distances
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import shutil
 import gpboost as gpb

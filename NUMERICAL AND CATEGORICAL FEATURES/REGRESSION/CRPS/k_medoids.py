@@ -29,7 +29,7 @@ from pygam import LinearGAM, s, f
 from sklearn.preprocessing import StandardScaler
 import gower
 from sklearn_extra.cluster import KMedoids
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import shutil
 import gpboost as gpb

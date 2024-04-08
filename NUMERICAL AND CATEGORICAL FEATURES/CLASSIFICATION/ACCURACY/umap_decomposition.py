@@ -28,7 +28,7 @@ from torch.optim import Adam
 from sklearn.metrics import accuracy_score
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.preprocessing import LabelEncoder
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import re
 import shutil

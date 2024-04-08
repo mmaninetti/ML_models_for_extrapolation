@@ -25,7 +25,7 @@ from lightgbmlss.distributions.Gaussian import *
 from drf import drf
 from sklearn.metrics.pairwise import euclidean_distances
 from pygam import LinearGAM, s, f
-from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping, train_GP, ExactGPModel
+from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import shutil
 
