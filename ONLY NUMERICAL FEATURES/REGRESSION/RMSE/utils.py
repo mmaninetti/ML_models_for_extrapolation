@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 import tqdm.auto as tqdm
-import gpytorch
 
 #### Define early stopping function
 class EarlyStopping():
@@ -191,31 +190,5 @@ def train_trans_no_early_stopping(model, criterion, optimizer, training_iteratio
             # Backward pass and optimize
             loss.backward()
             optimizer.step()
-
-
-def train_GP(model,X_train_tensor,y_train_tensor,training_iterations,mll,optimizer):
-
-    for _ in range(training_iterations):
-        # Zero backprop gradients
-        optimizer.zero_grad()
-        # Get output from model
-        output = model(X_train_tensor)
-        # Calc loss and backprop derivatives
-        loss = -mll(output, y_train_tensor)
-        loss.backward()
-        optimizer.step()
-        torch.cuda.empty_cache()
-
-
-class ExactGPModel(gpytorch.models.ExactGP):
-    def __init__(self, train_x, train_y, likelihood, kernel):
-        super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = kernel
-
-    def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
 
