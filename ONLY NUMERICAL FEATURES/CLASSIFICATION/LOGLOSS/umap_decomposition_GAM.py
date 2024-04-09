@@ -248,7 +248,6 @@ for task_id in benchmark_suite.tasks:
 
     # Add the columns with logloss of GAM and GP
     df.loc[df['Method'] == 'GAM', 'Log Loss'] = log_loss_gam
-    df.loc[len(df)] = ['GP', logloss_GP]
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
