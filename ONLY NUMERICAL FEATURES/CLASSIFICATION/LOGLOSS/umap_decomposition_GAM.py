@@ -195,7 +195,7 @@ for task_id in benchmark_suite.tasks:
 
     #### GAM model
     if task_id==361055:
-        log_loss_GAM = float("NaN")
+        log_loss_gam = float("NaN")
     else:
         def gam_model(trial):
 
