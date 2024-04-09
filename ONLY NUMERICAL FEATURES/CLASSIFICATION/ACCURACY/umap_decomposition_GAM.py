@@ -194,7 +194,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
     d_in=X_train_.shape[1]
 
     #### GAM model
-    if task_id==361055:
+    if (task_id==361055) or (task_id==361060):
         accuracy_gam = float("NaN")
     else:
         def gam_model(trial):
