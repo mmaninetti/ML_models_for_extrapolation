@@ -26,11 +26,6 @@ from rpy2.robjects.packages import importr
 
 import shutil
 
-# Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/SPATIAL_DEPTH'):
-    shutil.rmtree('CHECKPOINTS/SPATIAL_DEPTH')
-os.makedirs('CHECKPOINTS/SPATIAL_DEPTH')
-
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
 #SUITE_ID = 335 # Regression on numerical and categorical features

@@ -19,11 +19,6 @@ import re
 import shutil
 import gpboost as gpb
 
-# Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/UMAP'):
-    shutil.rmtree('CHECKPOINTS/UMAP')
-os.makedirs('CHECKPOINTS/UMAP')
-
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
 #SUITE_ID = 335 # Regression on numerical and categorical features
