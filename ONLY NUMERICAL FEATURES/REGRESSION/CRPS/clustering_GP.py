@@ -233,7 +233,7 @@ for task_id in benchmark_suite.tasks:
         for kernel in kernels:
             if kernel=="matern_ard":
                 for shape in shapes:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx)
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx, seed=seed)
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_mu = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                     pred_std = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['var']
@@ -246,7 +246,7 @@ for task_id in benchmark_suite.tasks:
                         best_kernel = kernel
                         best_shape = shape
             else:
-                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx)
+                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx, seed=seed)
                 gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                 pred_mu = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                 pred_std = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['var']
@@ -262,9 +262,9 @@ for task_id in benchmark_suite.tasks:
     intercept_train=np.ones(X_train.shape[0])
     intercept_test=np.ones(X_test.shape[0])
     if best_kernel=="matern_ard":
-        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx)
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx, seed=seed)
     else:
-        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx)
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx, seed=seed)
     
     gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
     pred_mu = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
