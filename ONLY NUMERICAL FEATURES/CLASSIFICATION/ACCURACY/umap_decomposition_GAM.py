@@ -31,6 +31,9 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361055
 for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark suite
 
+    if task_id<361062:
+        continue
+    
     if task_id==361276:
         continue
 
@@ -52,7 +55,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
 
     print(f"Task {task_id}")
 
-    if task_id==361055:
+    if (task_id==361055) or (task_id==361062):
         accuracy_gam = float("NaN")
     else:
 
