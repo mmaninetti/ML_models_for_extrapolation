@@ -33,7 +33,7 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361055
 for task_id in benchmark_suite.tasks:
 
-    if task_id<361062:
+    if task_id<361068:
         continue
 
     if task_id==361276:
@@ -55,7 +55,7 @@ for task_id in benchmark_suite.tasks:
 
     print(f"Task {task_id}")
 
-    if task_id==361062:
+    if (task_id==361062) or (task_id==361068):
         log_loss_gam = float("NaN")
     else:
 
