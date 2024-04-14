@@ -20,11 +20,6 @@ import re
 import shutil
 import gpboost as gpb
 
-# Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/CLUSTERING'):
-    shutil.rmtree('CHECKPOINTS/CLUSTERING')
-os.makedirs('CHECKPOINTS/CLUSTERING')
-
 SUITE_ID = 336 # Regression on numerical features
 #SUITE_ID = 337 # Classification on numerical features
 #SUITE_ID = 335 # Regression on numerical and categorical features
@@ -33,9 +28,6 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361072
 for task_id in benchmark_suite.tasks:
-
-    if task_id<=361075:
-        continue
 
     # Set the random seed for reproducibility
     N_TRIALS=100
@@ -227,31 +219,17 @@ for task_id in benchmark_suite.tasks:
     d_in=X_train_.shape[1]
 
     #### GP model
-    if (task_id==361073) and (task_id==361076):
-        RMSE_GP = float("NaN")
-    else:
-        approximations = ["vecchia", "fitc"]
-        kernels = ["matern_ard", "gaussian_ard"]
-        shapes = [0.5, 1.5, 2.5]
-        best_RMSE = float('inf')    
-        intercept_train=np.ones(X_train_.shape[0])
-        intercept_val=np.ones(X_val.shape[0])
-        for approx in approximations:
-            for kernel in kernels:
-                if kernel=="matern_ard":
-                    for shape in shapes:
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx)
-                        gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                        pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
-                        RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
-                        print("RMSE GP temporary: ", RMSE_GP)
-                        if RMSE_GP < best_RMSE:
-                            best_RMSE = RMSE_GP
-                            best_approx = approx
-                            best_kernel = kernel
-                            best_shape = shape
-                else:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx)
+    approximations = ["vecchia", "fitc"]
+    kernels = ["matern_ard", "gaussian_ard"]
+    shapes = [0.5, 1.5, 2.5]
+    best_RMSE = float('inf')    
+    intercept_train=np.ones(X_train_.shape[0])
+    intercept_val=np.ones(X_val.shape[0])
+    for approx in approximations:
+        for kernel in kernels:
+            if kernel=="matern_ard":
+                for shape in shapes:
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx)
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                     RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
@@ -260,67 +238,39 @@ for task_id in benchmark_suite.tasks:
                         best_RMSE = RMSE_GP
                         best_approx = approx
                         best_kernel = kernel
-                        best_shape = None
-        
-        intercept_train=np.ones(X_train.shape[0])
-        intercept_test=np.ones(X_test.shape[0])
-        if best_kernel=="matern_ard":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx)
-        else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx)
-        
-        gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
-        pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
-        RMSE_GP = np.sqrt(np.mean((y_test-pred_resp)**2))    
+                        best_shape = shape
+            else:
+                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx)
+                gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
+                pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
+                RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
+                print("RMSE GP temporary: ", RMSE_GP)
+                if RMSE_GP < best_RMSE:
+                    best_RMSE = RMSE_GP
+                    best_approx = approx
+                    best_kernel = kernel
+                    best_shape = None
+    
+    intercept_train=np.ones(X_train.shape[0])
+    intercept_test=np.ones(X_test.shape[0])
+    if best_kernel=="matern_ard":
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx)
+    else:
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx)
+    
+    gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
+    pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
+    RMSE_GP = np.sqrt(np.mean((y_test-pred_resp)**2))    
     print("RMSE GP: ", RMSE_GP)
-
-    #### GAM model
-    def gam_model(trial):
-
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines=trial.suggest_int('n_splines', 10, 100)
-        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
-        spline_order=trial.suggest_int('spline_order', 1, 5)
-        
-        # Create and train the model
-        gam = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-        # Predict on the validation set and calculate the RMSE
-        y_val_hat_gam = gam.predict(X_val)
-        RMSE_gam = np.sqrt(np.mean((y_val - y_val_hat_gam) ** 2))
-
-        return RMSE_gam
-
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
-
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-    # Get the best parameters
-    best_params = study_gam.best_params
-    n_splines=best_params['n_splines']
-    lam=best_params['lam']
-    spline_order=best_params['spline_order']
-
-    final_gam_model = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
-
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict(X_test)
-    # Calculate the RMSE
-    RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
-    print("RMSE GAM: ", RMSE_gam)
 
     # Load the existing DataFrame
     df = pd.read_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_RMSE_results.csv')
 
-    # Add the columns with RMSE of GAM and GP
-    df.loc[df['Method'] == 'GAM', 'RMSE'] = RMSE_gam
-    df.loc[len(df)] = ['GP', RMSE_GP]
+    # Add the columns with RMSE of GP and GP
+    if 'GP' in df['Method'].values:
+        df.loc[df['Method'] == 'GP', 'RMSE'] = RMSE_GP
+    else:
+        df.loc[len(df)] = ['GP', RMSE_GP]
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
