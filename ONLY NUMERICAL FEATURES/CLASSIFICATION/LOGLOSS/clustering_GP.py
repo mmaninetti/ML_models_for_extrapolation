@@ -25,11 +25,6 @@ import re
 import shutil
 import gpboost as gpb
 
-# Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/CLUSTERING'):
-    shutil.rmtree('CHECKPOINTS/CLUSTERING')
-os.makedirs('CHECKPOINTS/CLUSTERING')
-
 
 #SUITE_ID = 336 # Regression on numerical features
 SUITE_ID = 337 # Classification on numerical features
@@ -290,59 +285,14 @@ for task_id in benchmark_suite.tasks:
     logloss_GP = log_loss(y_test, pred_resp)    
     print("logloss GP: ", logloss_GP)
 
-    #### GAM model
-    def gam_model(trial):
-
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines=trial.suggest_int('n_splines', 10, 100)
-        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
-        spline_order=trial.suggest_int('spline_order', 1, 5)
-        
-        ## Create and train the model
-        gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-        # Predict on the validation set and calculate the log loss
-        y_val_hat_gam = gam.predict_proba(X_val)
-        y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
-        y_val_hat_gam_df.fillna(0.5, inplace=True)
-        y_val_hat_gam = y_val_hat_gam_df.values
-        log_loss_gam = log_loss(y_val, y_val_hat_gam)
-
-        return log_loss_gam
-
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
-
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-    # Get the best parameters
-    best_params = study_gam.best_params
-    n_splines=best_params['n_splines']
-    lam=best_params['lam']
-    spline_order=best_params['spline_order']
-
-    final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
-
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict_proba(X_test)
-    y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
-    y_test_hat_gam_df.fillna(0.5, inplace=True)
-    y_test_hat_gam = y_test_hat_gam_df.values
-    # Calculate the log loss
-    log_loss_gam = log_loss(y_test, y_test_hat_gam)
-    print("Log Loss GAM: ", log_loss_gam)
-
     # Load the existing DataFrame
     df = pd.read_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_logloss_results.csv')
 
-    # Add the columns with logloss of GAM and GP
-    df.loc[df['Method'] == 'GAM', 'Log Loss'] = log_loss_gam
-    df.loc[len(df)] = ['GP', logloss_GP]
+    # Update the DataFrame with the new results
+    if 'GP' in df['Method'].values:
+        df.loc[df['Method'] == 'GP', 'Log Loss'] = logloss_GP
+    else:
+        df.loc[len(df)] = ['GP', logloss_GP]
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS/CLUSTERING', exist_ok=True)

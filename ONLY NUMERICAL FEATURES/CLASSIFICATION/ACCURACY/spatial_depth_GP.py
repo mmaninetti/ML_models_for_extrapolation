@@ -4,17 +4,15 @@ import openml
 from sklearn.linear_model import LogisticRegression 
 import lightgbm as lgbm
 import optuna
-from scipy.spatial.distance import mahalanobis
 from sklearn.ensemble import RandomForestClassifier
 from engression import engression
 import torch
-from scipy.spatial.distance import mahalanobis
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 import random
 import os
 from pygam import LogisticGAM
 import torch
-from sklearn.metrics import log_loss
+from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder 
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
@@ -22,10 +20,9 @@ import re
 import shutil
 import gpboost as gpb
 
-# Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/MAHALANOBIS'):
-    shutil.rmtree('CHECKPOINTS/MAHALANOBIS')
-os.makedirs('CHECKPOINTS/MAHALANOBIS')
+import rpy2.robjects as robjects
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.packages import importr
 
 #SUITE_ID = 336 # Regression on numerical features
 SUITE_ID = 337 # Classification on numerical features
@@ -34,7 +31,7 @@ SUITE_ID = 337 # Classification on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361055
-for task_id in benchmark_suite.tasks:
+for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
 
     if task_id==361276:
         continue
@@ -53,9 +50,9 @@ for task_id in benchmark_suite.tasks:
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
 
-    print(f"Task {task_id}")
+    CHECKPOINT_PATH = f'CHECKPOINTS/SPATIAL_DEPTH/task_{task_id}.pt'
 
-    CHECKPOINT_PATH = f'CHECKPOINTS/MAHALANOBIS/task_{task_id}.pt'
+    print(f"Task {task_id}")
 
     task = openml.tasks.get_task(task_id)  # download the OpenML task
     dataset = task.get_dataset()
@@ -101,16 +98,22 @@ for task_id in benchmark_suite.tasks:
     # Convert the result back to a pandas Series
     y = pd.Series(y_encoded, index=y.index)
 
-    # calculate the mean and covariance matrix of the dataset
-    mean = np.mean(X_clean, axis=0)
-    cov = np.cov(X_clean.T)
 
-    # calculate the Mahalanobis distance for each data point
-    mahalanobis_dist = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_clean.values]
+    # activate pandas conversion for rpy2
+    pandas2ri.activate()
 
-    mahalanobis_dist=pd.Series(mahalanobis_dist,index=X_clean.index)
-    far_index=mahalanobis_dist.index[np.where(mahalanobis_dist>=np.quantile(mahalanobis_dist,0.8))[0]]
-    close_index=mahalanobis_dist.index[np.where(mahalanobis_dist<np.quantile(mahalanobis_dist,0.8))[0]]
+    # import R's "ddalpha" package
+    ddalpha = importr('ddalpha')
+
+    # explicitly import the projDepth function
+    spatialDepth = robjects.r['depth.spatial']
+
+    # calculate the spatial depth for each data point
+    spatial_depth = spatialDepth(X_clean, X_clean)
+
+    spatial_depth=pd.Series(spatial_depth,index=X_clean.index)
+    far_index=spatial_depth.index[np.where(spatial_depth<=np.quantile(spatial_depth,0.2))[0]]
+    close_index=spatial_depth.index[np.where(spatial_depth>np.quantile(spatial_depth,0.2))[0]]
 
     X_train_clean = X_clean.loc[close_index,:]
     X_train = X.loc[close_index,:]
@@ -118,15 +121,12 @@ for task_id in benchmark_suite.tasks:
     y_train = y.loc[close_index]
     y_test = y.loc[far_index]
 
-    mean = np.mean(X_train_clean, axis=0)
-    cov = np.cov(X_train_clean.T)
+    # convert the R vector to a pandas Series
+    spatial_depth_ = spatialDepth(X_train_clean, X_train_clean)
 
-    # calculate the Mahalanobis distance for each data point
-    mahalanobis_dist_ = [mahalanobis(x, mean, np.linalg.inv(cov)) for x in X_train_clean.values]
-
-    mahalanobis_dist_=pd.Series(mahalanobis_dist_,index=X_train_clean.index)
-    far_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_>=np.quantile(mahalanobis_dist_,0.8))[0]]
-    close_index_=mahalanobis_dist_.index[np.where(mahalanobis_dist_<np.quantile(mahalanobis_dist_,0.8))[0]]
+    spatial_depth_=pd.Series(spatial_depth_,index=X_train_clean.index)
+    far_index_=spatial_depth_.index[np.where(spatial_depth_<=np.quantile(spatial_depth_,0.2))[0]]
+    close_index_=spatial_depth_.index[np.where(spatial_depth_>np.quantile(spatial_depth_,0.2))[0]]
 
     X_train_ = X_train.loc[close_index_,:]
     X_val = X_train.loc[far_index_,:]
@@ -190,7 +190,7 @@ for task_id in benchmark_suite.tasks:
     approximations = ["vecchia", "fitc"]
     kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
-    best_logloss = float('inf')    
+    best_accuracy = 0  
     intercept_train=np.ones(X_train_.shape[0])
     intercept_val=np.ones(X_val.shape[0])
     for approx in approximations:
@@ -203,10 +203,11 @@ for task_id in benchmark_suite.tasks:
                         gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx)
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
-                    logloss_GP = log_loss(y_val, pred_resp)
-                    print("Logloss GP temporary: ", logloss_GP)
-                    if logloss_GP < best_logloss:
-                        best_logloss = logloss_GP
+                    pred_resp = np.where(pred_resp >= 0.5, 1, 0)
+                    accuracy_GP = accuracy_score(y_val, pred_resp)
+                    print("Accuracy GP temporary: ", accuracy_GP)
+                    if accuracy_GP > best_accuracy:
+                        best_accuracy = accuracy_GP
                         best_approx = approx
                         best_kernel = kernel
                         best_shape = shape
@@ -217,10 +218,11 @@ for task_id in benchmark_suite.tasks:
                     gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx)
                 gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
-                logloss_GP = log_loss(y_val, pred_resp)
-                print("Logloss GP temporary: ", logloss_GP)
-                if logloss_GP < best_logloss:
-                    best_logloss = logloss_GP
+                pred_resp = np.where(pred_resp >= 0.5, 1, 0)
+                accuracy_GP = accuracy_score(y_val, pred_resp)
+                print("Accuracy GP temporary: ", accuracy_GP)
+                if accuracy_GP > best_accuracy:
+                    best_accuracy = accuracy_GP
                     best_approx = approx
                     best_kernel = kernel
                     best_shape = None
@@ -240,65 +242,21 @@ for task_id in benchmark_suite.tasks:
 
     gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
     pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=False, predict_response=True)['mu']
-    logloss_GP = log_loss(y_test, pred_resp)    
-    print("logloss GP: ", logloss_GP)
-
-    #### GAM model
-    def gam_model(trial):
-
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines=trial.suggest_int('n_splines', 10, 100)
-        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
-        spline_order=trial.suggest_int('spline_order', 1, 5)
-        
-        ## Create and train the model
-        gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-        # Predict on the validation set and calculate the log loss
-        y_val_hat_gam = gam.predict_proba(X_val)
-        y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
-        y_val_hat_gam_df.fillna(0.5, inplace=True)
-        y_val_hat_gam = y_val_hat_gam_df.values
-        log_loss_gam = log_loss(y_val, y_val_hat_gam)
-
-        return log_loss_gam
-
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
-
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-    # Get the best parameters
-    best_params = study_gam.best_params
-    n_splines=best_params['n_splines']
-    lam=best_params['lam']
-    spline_order=best_params['spline_order']
-
-    final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
-
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict_proba(X_test)
-    y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
-    y_test_hat_gam_df.fillna(0.5, inplace=True)
-    y_test_hat_gam = y_test_hat_gam_df.values
-    # Calculate the log loss
-    log_loss_gam = log_loss(y_test, y_test_hat_gam)
-    print("Log Loss GAM: ", log_loss_gam)
+    pred_resp = np.where(pred_resp >= 0.5, 1, 0)
+    accuracy_GP = accuracy_score(y_test, pred_resp)    
+    print("accuracy GP: ", accuracy_GP)
 
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_logloss_results.csv')
+    df = pd.read_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_accuracy_results.csv')
 
-    # Add the columns with logloss of GAM and GP
-    df.loc[df['Method'] == 'GAM', 'Log Loss'] = log_loss_gam
-    df.loc[len(df)] = ['GP', logloss_GP]
+    # Update the DataFrame with the new results
+    if 'GP' in df['Method'].values:
+        df.loc[df['Method'] == 'GP', 'Accuracy'] = accuracy_GP
+    else:
+        df.loc[len(df)] = ['GP', accuracy_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
+    os.makedirs('RESULTS/SPATIAL_DEPTH', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_logloss_results.csv', index=False)
+    df.to_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_accuracy_results.csv', index=False)
