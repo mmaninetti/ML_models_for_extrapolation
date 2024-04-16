@@ -613,14 +613,14 @@ for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
 
     #### GP model
     approximations = ["vecchia", "fitc"]
-    kernels = ["matern_ard", "gaussian_ard"]
+    kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
     best_logloss = float('inf')    
     intercept_train=np.ones(X_train_.shape[0])
     intercept_val=np.ones(X_val.shape[0])
     for approx in approximations:
         for kernel in kernels:
-            if kernel=="matern_ard":
+            if kernel=="matern":
                 for shape in shapes:
                     if approx=="vecchia":
                         gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
@@ -650,7 +650,7 @@ for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
     
     intercept_train=np.ones(X_train.shape[0])
     intercept_test=np.ones(X_test.shape[0])
-    if best_kernel=="matern_ard":
+    if best_kernel=="matern":
         if approx=="vecchia":
             gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
         else:

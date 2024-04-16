@@ -220,14 +220,14 @@ for task_id in benchmark_suite.tasks:
 
     #### GP model
     approximations = ["vecchia", "fitc"]
-    kernels = ["matern_ard", "gaussian_ard"]
+    kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
     best_RMSE = float('inf')    
     intercept_train=np.ones(X_train_.shape[0])
     intercept_val=np.ones(X_val.shape[0])
     for approx in approximations:
         for kernel in kernels:
-            if kernel=="matern_ard":
+            if kernel=="matern":
                 for shape in shapes:
                     gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx, seed=seed)
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
@@ -253,7 +253,7 @@ for task_id in benchmark_suite.tasks:
     
     intercept_train=np.ones(X_train.shape[0])
     intercept_test=np.ones(X_test.shape[0])
-    if best_kernel=="matern_ard":
+    if best_kernel=="matern":
         gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx, seed=seed)
     else:
         gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx, seed=seed)
