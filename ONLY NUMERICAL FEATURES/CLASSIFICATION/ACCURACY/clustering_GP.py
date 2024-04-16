@@ -4,30 +4,27 @@ import openml
 from sklearn.linear_model import LogisticRegression 
 import lightgbm as lgbm
 import optuna
+from scipy.spatial.distance import mahalanobis
+from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.gaussian_process.kernels import Matern
 from engression import engression
 import torch
+from sklearn.preprocessing import StandardScaler
+from scipy.spatial.distance import mahalanobis
 from rtdl_revisiting_models import MLP, ResNet, FTTransformer
 import random
 import os
 from pygam import LogisticGAM
 import torch
 from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import LabelEncoder 
+from sklearn.preprocessing import LabelEncoder
 from utils import EarlyStopping, train, train_trans, train_no_early_stopping, train_trans_no_early_stopping
 from torch.utils.data import TensorDataset, DataLoader
 import re
 import shutil
 import gpboost as gpb
 
-import rpy2.robjects as robjects
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.packages import importr
-
-# Create the checkpoint directory if it doesn't exist
-if os.path.exists('CHECKPOINTS/SPATIAL_DEPTH'):
-    shutil.rmtree('CHECKPOINTS/SPATIAL_DEPTH')
-os.makedirs('CHECKPOINTS/SPATIAL_DEPTH')
 
 #SUITE_ID = 336 # Regression on numerical features
 SUITE_ID = 337 # Classification on numerical features
@@ -36,7 +33,7 @@ SUITE_ID = 337 # Classification on numerical features
 benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 
 #task_id=361055
-for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
+for task_id in benchmark_suite.tasks:
 
     if task_id==361276:
         continue
@@ -55,7 +52,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
 
-    CHECKPOINT_PATH = f'CHECKPOINTS/SPATIAL_DEPTH/task_{task_id}.pt'
+    CHECKPOINT_PATH = f'CHECKPOINTS/CLUSTERING/task_{task_id}.pt'
 
     print(f"Task {task_id}")
 
@@ -103,22 +100,38 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     # Convert the result back to a pandas Series
     y = pd.Series(y_encoded, index=y.index)
 
+    # New new implementation
+    N_CLUSTERS=20
+    # calculate the mean and covariance matrix of the dataset
+    mean = np.mean(X_clean, axis=0)
+    cov = np.cov(X_clean.T)
+    scaler = StandardScaler()
 
-    # activate pandas conversion for rpy2
-    pandas2ri.activate()
+    # transform data to compute the clusters
+    X_clean_scaled = scaler.fit_transform(X_clean)
 
-    # import R's "ddalpha" package
-    ddalpha = importr('ddalpha')
+    kmeans = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_clean_scaled)
+    distances=[]
+    mahalanobis_dist=[]
+    counts=[]
+    ideal_len=len(kmeans.labels_)/5
+    for i in np.arange(N_CLUSTERS):
+        distances.append(np.abs(np.sum(kmeans.labels_==i)-ideal_len))
+        counts.append(np.sum(kmeans.labels_==i))
+        mean_k= np.mean(X_clean.loc[kmeans.labels_==i,:], axis=0)
+        mahalanobis_dist.append(mahalanobis(mean_k, mean, np.linalg.inv(cov)))
 
-    # explicitly import the projDepth function
-    spatialDepth = robjects.r['depth.spatial']
+    dist_df=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist, 'count': counts}, index=np.arange(N_CLUSTERS))
+    dist_df=dist_df.sort_values('mahalanobis_dist', ascending=False)
+    dist_df['cumulative_count']=dist_df['count'].cumsum()
+    dist_df['abs_diff']=np.abs(dist_df['cumulative_count']-ideal_len)
 
-    # calculate the spatial depth for each data point
-    spatial_depth = spatialDepth(X_clean, X_clean)
-
-    spatial_depth=pd.Series(spatial_depth,index=X_clean.index)
-    far_index=spatial_depth.index[np.where(spatial_depth<=np.quantile(spatial_depth,0.2))[0]]
-    close_index=spatial_depth.index[np.where(spatial_depth>np.quantile(spatial_depth,0.2))[0]]
+    final=(np.where(dist_df['abs_diff']==np.min(dist_df['abs_diff']))[0])[0]
+    labelss=dist_df.index[0:final+1].to_list()
+    labels=pd.Series(kmeans.labels_).isin(labelss)
+    labels.index=X_clean.index
+    close_index=labels.index[np.where(labels==False)[0]]
+    far_index=labels.index[np.where(labels==True)[0]]
 
     X_train_clean = X_clean.loc[close_index,:]
     X_train = X.loc[close_index,:]
@@ -126,12 +139,36 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     y_train = y.loc[close_index]
     y_test = y.loc[far_index]
 
-    # convert the R vector to a pandas Series
-    spatial_depth_ = spatialDepth(X_train_clean, X_train_clean)
+    # calculate the mean and covariance matrix of the dataset
+    mean_ = np.mean(X_train_clean, axis=0)
+    cov_ = np.cov(X_train_clean.T)
+    scaler_ = StandardScaler()
 
-    spatial_depth_=pd.Series(spatial_depth_,index=X_train_clean.index)
-    far_index_=spatial_depth_.index[np.where(spatial_depth_<=np.quantile(spatial_depth_,0.2))[0]]
-    close_index_=spatial_depth_.index[np.where(spatial_depth_>np.quantile(spatial_depth_,0.2))[0]]
+    # transform data to compute the clusters
+    X_train_clean_scaled = scaler_.fit_transform(X_train_clean)
+
+    kmeans_ = KMeans(n_clusters=N_CLUSTERS, random_state=0, n_init="auto").fit(X_train_clean_scaled)
+    distances_=[]
+    counts_=[]
+    mahalanobis_dist_=[]
+    ideal_len_=len(kmeans_.labels_)/5
+    for i in np.arange(N_CLUSTERS):
+        distances_.append(np.abs(np.sum(kmeans_.labels_==i)-ideal_len_))
+        counts_.append(np.sum(kmeans_.labels_==i))
+        mean_k_= np.mean(X_train_clean.loc[kmeans_.labels_==i,:], axis=0)
+        mahalanobis_dist_.append(mahalanobis(mean_k_, mean_, np.linalg.inv(cov_)))
+
+    dist_df_=pd.DataFrame(data={'mahalanobis_dist': mahalanobis_dist_, 'count': counts_}, index=np.arange(N_CLUSTERS))
+    dist_df_=dist_df_.sort_values('mahalanobis_dist', ascending=False)
+    dist_df_['cumulative_count']=dist_df_['count'].cumsum()
+    dist_df_['abs_diff']=np.abs(dist_df_['cumulative_count']-ideal_len_)
+
+    final_=(np.where(dist_df_['abs_diff']==np.min(dist_df_['abs_diff']))[0])[0]
+    labelss_=dist_df_.index[0:final_+1].to_list()
+    labels_=pd.Series(kmeans_.labels_).isin(labelss_)
+    labels_.index=X_train_clean.index
+    close_index_=labels_.index[np.where(labels_==False)[0]]
+    far_index_=labels_.index[np.where(labels_==True)[0]]
 
     X_train_ = X_train.loc[close_index_,:]
     X_val = X_train.loc[far_index_,:]
@@ -251,57 +288,17 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     accuracy_GP = accuracy_score(y_test, pred_resp)    
     print("accuracy GP: ", accuracy_GP)
 
-    #### GAM model
-    def gam_model(trial):
-
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines=trial.suggest_int('n_splines', 10, 100)
-        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
-        spline_order=trial.suggest_int('spline_order', 1, 5)
-        
-        # Create and train the model
-        gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-        # Predict on the validation set and calculate the accuracy
-        y_val_hat_gam = gam.predict(X_val)
-        accuracy_gam = accuracy_score(y_val, y_val_hat_gam)
-
-        return accuracy_gam
-
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='maximize')
-
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-    # Get the best parameters
-    best_params = study_gam.best_params
-    n_splines=best_params['n_splines']
-    lam=best_params['lam']
-    spline_order=best_params['spline_order']
-
-    final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
-
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict(X_test)
-    
-    # Calculate the accuracy
-    accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
-    print("Accuracy GAM: ", accuracy_gam)
-
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_accuracy_results.csv')
+    df = pd.read_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_accuracy_results.csv')
 
-    # Add the columns with accuracy of GAM and GP
-    df.loc[df['Method'] == 'GAM', 'Accuracy'] = accuracy_gam
-    df.loc[len(df)] = ['GP', accuracy_GP]
+    # Update the DataFrame with the new results
+    if 'GP' in df['Method'].values:
+        df.loc[df['Method'] == 'GP', 'Accuracy'] = accuracy_GP
+    else:
+        df.loc[len(df)] = ['GP', accuracy_GP]
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS/SPATIAL_DEPTH', exist_ok=True)
+    os.makedirs('RESULTS/CLUSTERING', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/SPATIAL_DEPTH/{task_id}_spatial_depth_accuracy_results.csv', index=False)
+    df.to_csv(f'RESULTS/CLUSTERING/{task_id}_clustering_accuracy_results.csv', index=False)
