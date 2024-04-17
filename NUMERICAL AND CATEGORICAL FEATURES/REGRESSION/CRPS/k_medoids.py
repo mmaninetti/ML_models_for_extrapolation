@@ -837,67 +837,10 @@ for task_id in benchmark_suite.tasks[1:]:
     print("CRPS constant", CRPS_constant)
 
     #### GAM model
-    def gam_model(trial):
-
-        n_splines = []
-        lam = []
-        spline_order = []
-
-        # Iterate over each covariate in X_train_
-        for col in X_train_.columns:
-            # Define the search space for n_splines, lam, and spline_order
-            n_splines.append(trial.suggest_int(f'n_splines_{col}', 10, 100))
-            lam.append(trial.suggest_float(f'lam_{col}', 1e-3, 1e3, log=True))
-            spline_order.append(trial.suggest_int(f'spline_order_{col}', 1, 5))
-        
-        # Create and train the model
-        gam = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-        # Predict on the validation set and calculate the CRPS
-        y_train__hat_gam = gam.predict(X_train_)
-        std_dev_error = np.std(y_train_ - y_train__hat_gam)
-        y_val_hat_gam = gam.predict(X_val)
-        crps_gam = [crps_gaussian(y_val_np[i], mu=y_val_hat_gam[i], sig=std_dev_error) for i in range(len(y_val_hat_gam))]
-        crps_gam = np.mean(crps_gam)
-
-        return crps_gam
-
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
-
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-    n_splines = []
-    lam = []
-    spline_order = []
-
-    # Create the final model with the best parameters
-    best_params = study_gam.best_params
-
-    # Iterate over each covariate in X_train_
-    for col in X_train.columns:
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines.append(best_params[f'n_splines_{col}'])
-        lam.append(best_params[f'lam_{col}'])
-        spline_order.append(best_params[f'spline_order_{col}'])
-
-    final_gam_model = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
-
-    # Predict on the train set
-    y_train_hat_gam = final_gam_model.predict(X_train)
-    std_dev_error = np.std(y_train - y_train_hat_gam)
-
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict(X_test)
-
-    # Calculate the CRPS
-    crps_gam = [crps_gaussian(y_test_np[i], mu=y_test_hat_gam[i], sig=std_dev_error) for i in range(len(y_test_hat_gam))]
-    crps_gam = np.mean(crps_gam)
+    # Calculate the crps
+    # I will add it later
+    crps_gam = float("NaN")
+    print("CRPS GAM: ", crps_gam)
     print("CRPS GAM: ", crps_gam)
 
     #### GP model
@@ -911,7 +854,7 @@ for task_id in benchmark_suite.tasks[1:]:
         for kernel in kernels:
             if kernel=="matern":
                 for shape in shapes:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx)
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx, seed=seed)
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_mu = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                     pred_std = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['var']
@@ -923,7 +866,7 @@ for task_id in benchmark_suite.tasks[1:]:
                         best_kernel = kernel
                         best_shape = shape
             else:
-                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx)
+                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx, seed=seed)
                 gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                 pred_mu = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                 pred_std = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['var']
@@ -938,9 +881,9 @@ for task_id in benchmark_suite.tasks[1:]:
     intercept_train=np.ones(X_train.shape[0])
     intercept_test=np.ones(X_test.shape[0])
     if best_kernel=="matern":
-        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx)
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx, seed=seed)
     else:
-        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx)
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx, seed=seed)
     
     gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
     pred_mu = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
@@ -948,7 +891,7 @@ for task_id in benchmark_suite.tasks[1:]:
     crps_values = [crps_gaussian(y_test_np[i], mu=pred_mu[i], sig=pred_std[i]) for i in range(len(y_test))]  
     CRPS_GP = np.mean(crps_values)
     print("CRPS GP: ", CRPS_GP)
-
+    
     crps_results = {'constant': CRPS_constant, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'distributional_boosted_trees': CRPS_boosted_LSS, 'drf': CRPS_drf, 'boosted_trees': CRPS_boosted, 'rf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression, 'GAM': crps_gam, 'GP': CRPS_GP}
 
     # Convert the dictionary to a DataFrame

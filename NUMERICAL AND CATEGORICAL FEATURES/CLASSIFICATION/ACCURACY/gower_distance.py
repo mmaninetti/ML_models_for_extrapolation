@@ -582,9 +582,9 @@ for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
             if kernel=="matern":
                 for shape in shapes:
                     if approx=="vecchia":
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
+                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative", seed=seed)
                     else:
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx)
+                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, seed=seed)
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                     pred_resp = np.where(pred_resp >= 0.5, 1, 0)
@@ -596,9 +596,9 @@ for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
                         best_shape = shape
             else:
                 if approx=="vecchia":
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative", seed=seed)
                 else:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx)
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, seed=seed)
                 gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                 pred_resp = np.where(pred_resp >= 0.5, 1, 0)
@@ -613,61 +613,24 @@ for task_id in benchmark_suite.tasks[1:]:  # iterate over all tasks in the suite
     intercept_test=np.ones(X_test.shape[0])
     if best_kernel=="matern":
         if approx=="vecchia":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative", seed=seed)
         else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx)
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, seed=seed)
     else:
         if approx=="vecchia":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative", seed=seed)
         else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx)
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, seed=seed)
 
     gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
     pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=False, predict_response=True)['mu']
     pred_resp = np.where(pred_resp >= 0.5, 1, 0)
     accuracy_GP = accuracy_score(y_test, pred_resp)    
     print("accuracy GP: ", accuracy_GP)
-
-    #### GAM model
-    def gam_model(trial):
-
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines=trial.suggest_int('n_splines', 10, 100)
-        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
-        spline_order=trial.suggest_int('spline_order', 1, 5)
-        
-        # Create and train the model
-        gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-        # Predict on the validation set and calculate the accuracy
-        y_val_hat_gam = gam.predict(X_val)
-        accuracy_gam = accuracy_score(y_val, y_val_hat_gam)
-
-        return accuracy_gam
-
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='maximize')
-
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-    # Get the best parameters
-    best_params = study_gam.best_params
-    n_splines=best_params['n_splines']
-    lam=best_params['lam']
-    spline_order=best_params['spline_order']
-
-    final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
-
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict(X_test)
     
     # Calculate the accuracy
-    accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
+    # I will add it later
+    accuracy_gam = float("NaN")
     print("Accuracy GAM: ", accuracy_gam)
 
     accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': accuracy_gam, 'GP': accuracy_GP} 

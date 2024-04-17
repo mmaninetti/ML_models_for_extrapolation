@@ -588,9 +588,9 @@ for task_id in benchmark_suite.tasks:
             if kernel=="matern":
                 for shape in shapes:
                     if approx=="vecchia":
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
+                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative", seed=seed)
                     else:
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx)
+                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, seed=seed)
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                     logloss_GP = log_loss(y_val, pred_resp)
@@ -601,9 +601,9 @@ for task_id in benchmark_suite.tasks:
                         best_shape = shape
             else:
                 if approx=="vecchia":
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative")
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative", seed=seed)
                 else:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx)
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, seed=seed)
                 gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                 logloss_GP = log_loss(y_val, pred_resp)
@@ -617,14 +617,14 @@ for task_id in benchmark_suite.tasks:
     intercept_test=np.ones(X_test.shape[0])
     if best_kernel=="matern":
         if approx=="vecchia":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative", seed=seed)
         else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx)
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, seed=seed)
     else:
         if approx=="vecchia":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative")
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative", seed=seed)
         else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx)
+            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, seed=seed)
 
     gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
     pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=False, predict_response=True)['mu']
@@ -632,50 +632,9 @@ for task_id in benchmark_suite.tasks:
     print("logloss GP: ", logloss_GP)
 
     #### GAM model
-    def gam_model(trial):
-
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines=trial.suggest_int('n_splines', 10, 100)
-        lam=trial.suggest_float('lam', 1e-3, 1e3, log=True)
-        spline_order=trial.suggest_int('spline_order', 1, 5)
-        
-        ## Create and train the model
-        gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-        # Predict on the validation set and calculate the log loss
-        y_val_hat_gam = gam.predict_proba(X_val)
-        y_val_hat_gam_df = pd.DataFrame(y_val_hat_gam)
-        y_val_hat_gam_df.fillna(0.5, inplace=True)
-        y_val_hat_gam = y_val_hat_gam_df.values
-        log_loss_gam = log_loss(y_val, y_val_hat_gam)
-
-        return log_loss_gam
-
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
-
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-    # Get the best parameters
-    best_params = study_gam.best_params
-    n_splines=best_params['n_splines']
-    lam=best_params['lam']
-    spline_order=best_params['spline_order']
-
-    final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
-
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict_proba(X_test)
-    y_test_hat_gam_df = pd.DataFrame(y_test_hat_gam)
-    y_test_hat_gam_df.fillna(0.5, inplace=True)
-    y_test_hat_gam = y_test_hat_gam_df.values
     # Calculate the log loss
-    log_loss_gam = log_loss(y_test, y_test_hat_gam)
+    # I will add it later
+    log_loss_gam = float("NaN")
     print("Log Loss GAM: ", log_loss_gam)
     
     log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam, 'GP': logloss_GP}
