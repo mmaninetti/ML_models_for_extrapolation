@@ -610,58 +610,9 @@ for task_id in benchmark_suite.tasks[1:]:
     print("RMSE constant prediction: ", RMSE_constant)
 
     #### GAM model
-    def gam_model(trial):
-
-        n_splines = []
-        lam = []
-        spline_order = []
-
-        # Iterate over each covariate in X_train_
-        for col in X_train_.columns:
-            # Define the search space for n_splines, lam, and spline_order
-            n_splines.append(trial.suggest_int(f'n_splines_{col}', 10, 100))
-            lam.append(trial.suggest_float(f'lam_{col}', 1e-3, 1e3, log=True))
-            spline_order.append(trial.suggest_int(f'spline_order_{col}', 1, 5))
-        
-        # Create and train the model
-        gam = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-        # Predict on the validation set and calculate the RMSE
-        y_val_hat_gam = gam.predict(X_val)
-        RMSE_gam = np.sqrt(np.mean((y_val - y_val_hat_gam) ** 2))
-
-        return RMSE_gam
-
-    # Create the sampler and study
-    sampler_gam = optuna.samplers.TPESampler(seed=seed)
-    study_gam = optuna.create_study(sampler=sampler_gam, direction='minimize')
-
-    # Optimize the model
-    study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-    n_splines = []
-    lam = []
-    spline_order = []
-
-    # Create the final model with the best parameters
-    best_params = study_gam.best_params
-
-    # Iterate over each covariate in X_train_
-    for col in X_train.columns:
-        # Define the search space for n_splines, lam, and spline_order
-        n_splines.append(best_params[f'n_splines_{col}'])
-        lam.append(best_params[f'lam_{col}'])
-        spline_order.append(best_params[f'spline_order_{col}'])
-
-    final_gam_model = LinearGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-    # Fit the model
-    final_gam_model.fit(X_train, y_train)
-
-    # Predict on the test set
-    y_test_hat_gam = final_gam_model.predict(X_test)
     # Calculate the RMSE
-    RMSE_gam = np.sqrt(np.mean((y_test - y_test_hat_gam) ** 2))
+    # I will add it later
+    RMSE_gam = float("NaN")
     print("RMSE GAM: ", RMSE_gam)
 
     #### GP model
@@ -675,7 +626,7 @@ for task_id in benchmark_suite.tasks[1:]:
         for kernel in kernels:
             if kernel=="matern":
                 for shape in shapes:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx)
+                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx, seed=seed)
                     gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                     RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
@@ -685,7 +636,7 @@ for task_id in benchmark_suite.tasks[1:]:
                         best_kernel = kernel
                         best_shape = shape
             else:
-                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx)
+                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx, seed=seed)
                 gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                 RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
@@ -698,15 +649,15 @@ for task_id in benchmark_suite.tasks[1:]:
     intercept_train=np.ones(X_train.shape[0])
     intercept_test=np.ones(X_test.shape[0])
     if best_kernel=="matern":
-        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx)
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx, seed=seed)
     else:
-        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx)
+        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx, seed=seed)
     
     gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
     pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
     RMSE_GP = np.sqrt(np.mean((y_test-pred_resp)**2))    
     print("RMSE GP: ", RMSE_GP)
-
+    
     RMSE_results = {'constant': RMSE_constant, 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans.item(), 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam, 'GP': RMSE_GP} 
 
     # Convert the dictionary to a DataFrame
