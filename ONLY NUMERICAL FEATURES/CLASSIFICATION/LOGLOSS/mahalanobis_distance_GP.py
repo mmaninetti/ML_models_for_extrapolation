@@ -34,6 +34,9 @@ for task_id in benchmark_suite.tasks:
     if task_id==361276:
         continue
 
+    if task_id<361062:
+        continue
+
     # Set the random seed for reproducibility
     N_TRIALS=100
     N_SAMPLES=100
@@ -235,6 +238,11 @@ for task_id in benchmark_suite.tasks:
 
     gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
     pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=False, predict_response=True)['mu']
+    
+    pred_resp_df = pd.DataFrame(pred_resp)
+    pred_resp_df.fillna(0.5, inplace=True)
+    pred_resp = pred_resp_df.values
+
     logloss_GP = log_loss(y_test, pred_resp)    
     print("logloss GP: ", logloss_GP)
 
