@@ -57,7 +57,7 @@ for task_id in benchmark_suite.tasks:
 
     print(f"Task {task_id}")
 
-    if (task_id==361055) or (task_id==36062):
+    if (task_id==361055) or (task_id==361062):
         logloss_GP = float("NaN")
     else:
 
