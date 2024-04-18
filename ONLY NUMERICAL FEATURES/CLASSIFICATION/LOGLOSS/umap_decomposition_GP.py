@@ -34,7 +34,7 @@ for task_id in benchmark_suite.tasks:
     if task_id==361276:
         continue
 
-    if task_id<361062:
+    if task_id<361063:
         continue
 
     # Set the random seed for reproducibility
@@ -53,7 +53,7 @@ for task_id in benchmark_suite.tasks:
 
     print(f"Task {task_id}")
 
-    if (task_id==361055) or (task_id==361060) or (task_id==361062):
+    if (task_id==361055) or (task_id==361060) or (task_id==361062) or (task_id==361063):
         logloss_GP = float("NaN")
     else:
 
