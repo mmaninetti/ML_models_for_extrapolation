@@ -44,7 +44,7 @@ for task_id in benchmark_suite.tasks:
     PATIENCE=40
     N_EPOCHS=1000
     GP_ITERATIONS=1000
-    BATCH_SIZE=1024
+    BATCH_SIZE=512
     seed=10
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
