@@ -20,7 +20,7 @@ for (method in methods) {
 }
 
 list_directories <- c("RESULTS/CLUSTERING", "RESULTS/UMAP_DECOMPOSITION", "RESULTS/SPATIAL_DEPTH", "RESULTS/MAHALANOBIS")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'distributional_boosted_trees', 'drf', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'distributional_boosted_trees', 'drf', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM','GP')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -85,7 +85,11 @@ for (task_id in task_ids)
       # Extract the Method and CRPS columns
       method <- results_dataset$Method
       CRPS <- results_dataset$CRPS
-      
+
+      CRPS <- ifelse(CRPS >= 0, CRPS, NA)
+      second_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[2]
+      CRPS[CRPS > 5 * second_largest] <- NA
+
       # Append the Method and CRPS to the result_row
       result_CRPS <- cbind(result_CRPS, CRPS)
     }
@@ -94,7 +98,7 @@ for (task_id in task_ids)
   # Calculate the mean of the CRPS for each method
   if (ncol(result_CRPS) > 2) 
   {
-    result_CRPS_mean <- rowMeans(result_CRPS[, -1])
+    result_CRPS_mean <- rowMeans(result_CRPS[, -1], na.rm=TRUE)
   }
   else
   {
@@ -109,7 +113,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans", "drf", "distributional_boosted_trees")]
+results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans", "drf", "distributional_boosted_trees")]
 
 
 # Print the new dataset with the Method and CRPS columns
@@ -119,7 +123,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.', 'DRF', 'DGBT')
+models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.', 'DRF', 'DGBT')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -145,9 +149,13 @@ for (directory in list_directories) {
       
       # Extract the CRPS column
       CRPS <- table$CRPS
+
+      CRPS <- ifelse(CRPS >= 0, CRPS, NA)
+      second_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[2]
+      CRPS[CRPS > 5 * second_largest] <- NA
       
       # Calculate the lowest CRPS
-      lowest_CRPS <- min(CRPS)
+      lowest_CRPS <- min(CRPS, na.rm=TRUE)
       
       # Calculate the normalized CRPS and add it to the data frame
       tmp <- data.frame()
@@ -161,16 +169,16 @@ for (directory in list_directories) {
 }
 
 # Set the row names of the data frame as the Method column
-mean_rel_diff <- 100*colMeans(df)
+mean_rel_diff <- 100*colMeans(df, na.rm=TRUE)
 # Create a row for the current task_id
-avg_rel_diff <- data.frame(task_id = "Avg. rel. diff.", stringsAsFactors = FALSE)
+avg_rel_diff <- data.frame(task_id = "Avg. diff.", stringsAsFactors = FALSE)
 # Add a column for each method
 i=1
 for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans", "drf", "distributional_boosted_trees")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans", "drf", "distributional_boosted_trees")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -195,10 +203,14 @@ for (directory in list_directories) {
       
       # Extract the CRPS column
       CRPS <- table$CRPS
+
+      CRPS <- ifelse(CRPS >= 0, CRPS, NA)
+      second_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[2]
+      CRPS[CRPS > 5 * second_largest] <- NA
       
       # Calculate the lowest CRPS
-      mid_CRPS <- quantile(CRPS, 0.5)
-      lowest_CRPS <- min(CRPS)
+      mid_CRPS <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
+      lowest_CRPS <- min(CRPS, na.rm=TRUE)
       
       # Calculate the normalized CRPS and add it to the data frame
       tmp <- data.frame()
@@ -212,16 +224,16 @@ for (directory in list_directories) {
 }
 
 # Set the row names of the data frame as the Method column
-mean_norm_acc <- 100*colMeans(df)
+mean_norm_acc <- 100*colMeans(df, na.rm=TRUE)
 # Create a row for the current task_id
-avg_norm_acc <- data.frame(task_id = "Avg. norm. acc.", stringsAsFactors = FALSE)
+avg_norm_acc <- data.frame(task_id = "Avg. acc.", stringsAsFactors = FALSE)
 # Add a column for each method
 i=1
 for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans", "drf", "distributional_boosted_trees")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans", "drf", "distributional_boosted_trees")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -246,6 +258,10 @@ for (directory in list_directories) {
       
       # Extract the CRPS column
       CRPS <- table$CRPS
+
+      CRPS <- ifelse(CRPS >= 0, CRPS, NA)
+      second_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[2]
+      CRPS[CRPS > 5 * second_largest] <- NA
       
       # Calculate the normalized CRPS and add it to the data frame
       tmp <- data.frame()
@@ -258,7 +274,7 @@ for (directory in list_directories) {
   }
 }
 # Set the row names of the data frame as the Method column
-mean_rank <- colMeans(df)
+mean_rank <- colMeans(df, na.rm=TRUE)
 # Create a row for the current task_id
 avg_rank <- data.frame(task_id = "Avg. rank", stringsAsFactors = FALSE)
 # Add a column for each method
@@ -267,25 +283,25 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans", "drf", "distributional_boosted_trees")]
+avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans", "drf", "distributional_boosted_trees")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
 ## Create table
-num_digits <- 2
+num_digits <- 3
 output <- results
 # Set the number of significant digits
 output[, -1] <- signif(output[, -1], num_digits)
 
 # Find the lowest value in each row
-lowest_values <- apply(output[, -1], 1, function(x) min(x))
+lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 
 # Find the highest value in the second-to-last column
-highest_value <- max(output[nrow(output) - 1, -1])
+highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
-# Convert numbers smaller than 0.01 to scientific notation
-output[, -1][output[, -1] < 0.01] <- format(output[, -1][output[, -1] < 0.01], scientific = TRUE)
-lowest_values[lowest_values<0.01] <- format(lowest_values[lowest_values<0.01], scientific=TRUE)
+# Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -298,8 +314,8 @@ output[nrow(output) - 1, -1] <- ifelse(output[nrow(output) - 1, -1] == highest_v
 
 caption <- paste0("Average test CRPS. 
                   Best results are bold. 
-                  'Avg. rel. diff.' denotes the average relative difference in \\% of a method compared to the best method.
-                  'Avg. norm. acc.' denotes the average normalized accuracy in \\% of a method.
+                  'Avg. diff.' denotes the average relative difference in \\% of a method compared to the best method.
+                  'Avg. acc.' denotes the average normalized accuracy in \\% of a method.
                   'Avg. rank' denotes the average rank of a method.")
                    #Bold results are non-inferior to the best result in a paired t-test at a 5\\% level.
 label <- paste0("TABLES/table_results_CRPS")
