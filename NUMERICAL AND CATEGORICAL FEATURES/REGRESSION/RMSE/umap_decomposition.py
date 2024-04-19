@@ -159,7 +159,7 @@ for task_id in benchmark_suite.tasks:
     y_train__tensor = torch.tensor(y_train_.values, dtype=torch.float32)
     X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
     y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32)
-    X_val_tensor = torch.tensor(X_val_tensor.values, dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_val.values, dtype=torch.float32)
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32)
     X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32)
