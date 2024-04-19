@@ -20,7 +20,7 @@ for (method in methods) {
 }
 
 list_directories <- c("RESULTS/CLUSTERING", "RESULTS/UMAP_DECOMPOSITION", "RESULTS/SPATIAL_DEPTH", "RESULTS/MAHALANOBIS")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM','GP')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -53,7 +53,7 @@ for (task_id in task_ids)
   }
 
   # Create a dataset for the RMSE with the correct number of rows
-  result_rmse <- data.frame(method = methods, stringsAsFactors = FALSE)
+  result_RMSE <- data.frame(method = methods, stringsAsFactors = FALSE)
   
   # Iterate through the 4 directories
   for (directory in list_directories)
@@ -84,32 +84,36 @@ for (task_id in task_ids)
       
       # Extract the Method and RMSE columns
       method <- results_dataset$Method
-      rmse <- results_dataset$RMSE
-      
+      RMSE <- results_dataset$RMSE
+
+      RMSE <- ifelse(RMSE >= 0, RMSE, NA)
+      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
+      RMSE[RMSE > 5 * second_largest] <- NA
+
       # Append the Method and RMSE to the result_row
-      result_rmse <- cbind(result_rmse, rmse)
+      result_RMSE <- cbind(result_RMSE, RMSE)
     }
   }
   
   # Calculate the mean of the RMSE for each method
-  if (ncol(result_rmse) > 2) 
+  if (ncol(result_RMSE) > 2) 
   {
-    result_rmse_mean <- rowMeans(result_rmse[, -1])
+    result_RMSE_mean <- rowMeans(result_RMSE[, -1], na.rm=TRUE)
   }
   else
   {
-    result_rmse_mean <- result_rmse$rmse
+    result_RMSE_mean <- result_RMSE$RMSE
   }
 
-  # Append the result_rmse_mean to result_row
-  result_row[, methods] <- result_rmse_mean
+  # Append the result_RMSE_mean to result_row
+  result_row[, methods] <- result_RMSE_mean
   
   # Append the result_row to the results_agg data frame
   results_agg <- rbind(results_agg, result_row)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and RMSE columns
@@ -119,7 +123,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -144,33 +148,37 @@ for (directory in list_directories) {
       table <- read.csv(filepath)
       
       # Extract the RMSE column
-      rmse <- table$RMSE
+      RMSE <- table$RMSE
+
+      RMSE <- ifelse(RMSE >= 0, RMSE, NA)
+      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
+      RMSE[RMSE > 5 * second_largest] <- NA
       
       # Calculate the lowest RMSE
-      lowest_rmse <- min(rmse)
+      lowest_RMSE <- min(RMSE, na.rm=TRUE)
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
       for (method in methods) {
         tmp[[method]] <- numeric()
       }
-      tmp[1,]<-(rmse - lowest_rmse) / lowest_rmse
+      tmp[1,]<-(RMSE - lowest_RMSE) / lowest_RMSE
       df <- rbind(df, tmp)
     }
   }
 }
 
 # Set the row names of the data frame as the Method column
-mean_rel_diff <- 100*colMeans(df)
+mean_rel_diff <- 100*colMeans(df, na.rm=TRUE)
 # Create a row for the current task_id
-avg_rel_diff <- data.frame(task_id = "Avg. rel. diff.", stringsAsFactors = FALSE)
+avg_rel_diff <- data.frame(task_id = "Avg. diff.", stringsAsFactors = FALSE)
 # Add a column for each method
 i=1
 for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -194,34 +202,38 @@ for (directory in list_directories) {
       table <- read.csv(filepath)
       
       # Extract the RMSE column
-      rmse <- table$RMSE
+      RMSE <- table$RMSE
+
+      RMSE <- ifelse(RMSE >= 0, RMSE, NA)
+      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
+      RMSE[RMSE > 5 * second_largest] <- NA
       
       # Calculate the lowest RMSE
-      mid_rmse <- quantile(rmse, 0.5)
-      lowest_rmse <- min(rmse)
+      mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      lowest_RMSE <- min(RMSE, na.rm=TRUE)
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
       for (method in methods) {
         tmp[[method]] <- numeric()
       }
-      tmp[1,] <- pmin(pmax((mid_rmse - rmse) / (mid_rmse - lowest_rmse), 0), 1)
+      tmp[1,] <- pmin(pmax((mid_RMSE - RMSE) / (mid_RMSE - lowest_RMSE), 0), 1)
       df <- rbind(df, tmp)
     }
   }
 }
 
 # Set the row names of the data frame as the Method column
-mean_norm_acc <- 100*colMeans(df)
+mean_norm_acc <- 100*colMeans(df, na.rm=TRUE)
 # Create a row for the current task_id
-avg_norm_acc <- data.frame(task_id = "Avg. norm. acc.", stringsAsFactors = FALSE)
+avg_norm_acc <- data.frame(task_id = "Avg. acc.", stringsAsFactors = FALSE)
 # Add a column for each method
 i=1
 for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -245,20 +257,24 @@ for (directory in list_directories) {
       table <- read.csv(filepath)
       
       # Extract the RMSE column
-      rmse <- table$RMSE
+      RMSE <- table$RMSE
+
+      RMSE <- ifelse(RMSE >= 0, RMSE, NA)
+      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
+      RMSE[RMSE > 5 * second_largest] <- NA
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
       for (method in methods) {
         tmp[[method]] <- numeric()
       }
-      tmp[1,]<-rank(rmse)
+      tmp[1,]<-rank(RMSE)
       df <- rbind(df, tmp)
     }
   }
 }
 # Set the row names of the data frame as the Method column
-mean_rank <- colMeans(df)
+mean_rank <- colMeans(df, na.rm=TRUE)
 # Create a row for the current task_id
 avg_rank <- data.frame(task_id = "Avg. rank", stringsAsFactors = FALSE)
 # Add a column for each method
@@ -267,39 +283,39 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
 ## Create table
-num_digits <- 2
+num_digits <- 3
 output <- results
 # Set the number of significant digits
 output[, -1] <- signif(output[, -1], num_digits)
 
 # Find the lowest value in each row
-lowest_values <- apply(output[, -1], 1, function(x) min(x))
+lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 
 # Find the highest value in the second-to-last column
-highest_value <- max(output[nrow(output) - 1, -1])
+highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
-# Convert numbers smaller than 0.01 to scientific notation
-output[, -1][output[, -1] < 0.01] <- format(output[, -1][output[, -1] < 0.01], scientific = TRUE)
-lowest_values[lowest_values<0.01] <- format(lowest_values[lowest_values<0.01], scientific=TRUE)
+# Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
   if (i!=nrow(output) - 1)
   {
-    output[i, -1] <- ifelse(output[i, -1] == lowest_values[i], paste0("\\textbf{", output[i, -1], "}"), output[i, -1])
+  output[i, -1] <- ifelse(output[i, -1] == lowest_values[i], paste0("\\textbf{", output[i, -1], "}"), output[i, -1])
   }
 }
 output[nrow(output) - 1, -1] <- ifelse(output[nrow(output) - 1, -1] == highest_value, paste0("\\textbf{", output[nrow(output) - 1, -1], "}"), output[nrow(output) - 1, -1])
 
-caption <- paste0("Average test root mean squared error (RMSE). 
+caption <- paste0("Average test RMSE. 
                   Best results are bold. 
-                  'Avg. rel. diff.' denotes the average relative difference in \\% of a method compared to the best method.
-                  'Avg. norm. acc.' denotes the average normalized accuracy in \\% of a method.
+                  'Avg. diff.' denotes the average relative difference in \\% of a method compared to the best method.
+                  'Avg. acc.' denotes the average normalized accuracy in \\% of a method.
                   'Avg. rank' denotes the average rank of a method.")
                    #Bold results are non-inferior to the best result in a paired t-test at a 5\\% level.
 label <- paste0("TABLES/table_results_RMSE")
