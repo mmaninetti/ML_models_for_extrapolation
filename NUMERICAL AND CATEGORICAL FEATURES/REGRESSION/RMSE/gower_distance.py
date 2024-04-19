@@ -575,47 +575,8 @@ for task_id in benchmark_suite.tasks:
     print("RMSE GAM: ", RMSE_gam)
 
     #### GP model
-    approximations = ["vecchia", "fitc"]
-    kernels = ["matern", "gaussian"]
-    shapes = [0.5, 1.5, 2.5]
-    best_RMSE = float('inf')    
-    intercept_train=np.ones(X_train_.shape[0])
-    intercept_val=np.ones(X_val.shape[0])
-    for approx in approximations:
-        for kernel in kernels:
-            if kernel=="matern":
-                for shape in shapes:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="gaussian", gp_approx=approx, seed=seed)
-                    gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                    pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
-                    RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
-                    if RMSE_GP < best_RMSE:
-                        best_RMSE = RMSE_GP
-                        best_approx = approx
-                        best_kernel = kernel
-                        best_shape = shape
-            else:
-                gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="gaussian", gp_approx=approx, seed=seed)
-                gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
-                RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
-                if RMSE_GP < best_RMSE:
-                    best_RMSE = RMSE_GP
-                    best_approx = approx
-                    best_kernel = kernel
-                    best_shape = None
-    
-    intercept_train=np.ones(X_train.shape[0])
-    intercept_test=np.ones(X_test.shape[0])
-    if best_kernel=="matern":
-        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="gaussian", gp_approx=best_approx, seed=seed)
-    else:
-        gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="gaussian", gp_approx=best_approx, seed=seed)
-    
-    gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
-    pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=True, predict_response=True)['mu']
-    RMSE_GP = np.sqrt(np.mean((y_test-pred_resp)**2))    
-    print("RMSE GP: ", RMSE_GP)
+    # For now, just set it to Nan
+    RMSE_GP = float("NaN")
 
     RMSE_results = {'constant': RMSE_constant, 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans.item(), 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam, 'GP': RMSE_GP} 
 

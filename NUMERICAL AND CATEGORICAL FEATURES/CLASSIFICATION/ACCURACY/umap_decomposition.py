@@ -579,62 +579,8 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     print("Accuracy constant prediction: ", accuracy_constant)
 
     #### GP model
-    approximations = ["vecchia", "fitc"]
-    kernels = ["matern", "gaussian"]
-    shapes = [0.5, 1.5, 2.5]
-    best_accuracy = 0  
-    intercept_train=np.ones(X_train_.shape[0])
-    intercept_val=np.ones(X_val.shape[0])
-    for approx in approximations:
-        for kernel in kernels:
-            if kernel=="matern":
-                for shape in shapes:
-                    if approx=="vecchia":
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative", seed=seed)
-                    else:
-                        gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, cov_fct_shape=shape, likelihood="bernoulli_logit", gp_approx=approx, seed=seed)
-                    gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                    pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
-                    pred_resp = np.where(pred_resp >= 0.5, 1, 0)
-                    accuracy_GP = accuracy_score(y_val, pred_resp)
-                    if accuracy_GP > best_accuracy:
-                        best_accuracy = accuracy_GP
-                        best_approx = approx
-                        best_kernel = kernel
-                        best_shape = shape
-            else:
-                if approx=="vecchia":
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, matrix_inversion_method="iterative", seed=seed)
-                else:
-                    gp_model = gpb.GPModel(gp_coords=X_train_, cov_function=kernel, likelihood="bernoulli_logit", gp_approx=approx, seed=seed)
-                gp_model.fit(y=y_train_, X=intercept_train, params={"trace": True})
-                pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
-                pred_resp = np.where(pred_resp >= 0.5, 1, 0)
-                accuracy_GP = accuracy_score(y_val, pred_resp)
-                if accuracy_GP > best_accuracy:
-                    best_accuracy = accuracy_GP
-                    best_approx = approx
-                    best_kernel = kernel
-                    best_shape = None
-    
-    intercept_train=np.ones(X_train.shape[0])
-    intercept_test=np.ones(X_test.shape[0])
-    if best_kernel=="matern":
-        if approx=="vecchia":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative", seed=seed)
-        else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, cov_fct_shape=best_shape, likelihood="bernoulli_logit", gp_approx=best_approx, seed=seed)
-    else:
-        if approx=="vecchia":
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, matrix_inversion_method="iterative", seed=seed)
-        else:
-            gp_model = gpb.GPModel(gp_coords=X_train, cov_function=best_kernel, likelihood="bernoulli_logit", gp_approx=best_approx, seed=seed)
-
-    gp_model.fit(y=y_train, X=intercept_train, params={"trace": True})
-    pred_resp = gp_model.predict(gp_coords_pred=X_test, X_pred=intercept_test, predict_var=False, predict_response=True)['mu']
-    pred_resp = np.where(pred_resp >= 0.5, 1, 0)
-    accuracy_GP = accuracy_score(y_test, pred_resp)    
-    print("accuracy GP: ", accuracy_GP)
+    # For now, just set it to Nan
+    accuracy_GP = float("NaN")
 
     #### GAM model
     # Calculate the accuracy
