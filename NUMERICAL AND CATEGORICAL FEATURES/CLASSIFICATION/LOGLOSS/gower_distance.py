@@ -129,7 +129,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
 
     # Convert data to PyTorch tensors
     # Modify X_train_, X_val, X_train, and X_test to have dummy variables
-    X = pd.get_dummies(X.astype(str), drop_first=True)
+    X = pd.get_dummies(X, drop_first=True)
 
     X_train = X.loc[close_index,:]
     X_test = X.loc[far_index,:]
@@ -359,8 +359,103 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     del ResNet_model, optimizer, criterion, y_test_hat_ResNet, predictions
 
     # #### FFTransformer
-    #### Skip for now, will do it later
-    log_loss_FTTrans = float("NaN")
+    d_out = 1  
+    d_in=X_train_.shape[1]
+
+    def FTTrans_opt(trial):
+
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+
+        n_blocks = trial.suggest_int("n_blocks", 1, 5)
+        d_block_multiplier = trial.suggest_int("d_block_multiplier", 1, 25)
+        attention_n_heads = trial.suggest_int("attention_n_heads", 1, 20)
+        attention_dropout = trial.suggest_float("attention_dropout", 0, 1)
+        ffn_d_hidden_multiplier=trial.suggest_float("ffn_d_hidden_multiplier", 0.5, 3)
+        ffn_dropout = trial.suggest_float("ffn_dropout", 0, 1)
+        residual_dropout = trial.suggest_float("residual_dropout", 0, 1)
+
+        FTTrans_model = FTTransformer(
+        n_cont_features=d_in,
+        cat_cardinalities=[],
+        d_out=1,  # For binary classification, output dimension should be 1
+        n_blocks=n_blocks,
+        d_block=d_block_multiplier*attention_n_heads,
+        attention_n_heads=attention_n_heads,
+        attention_dropout=attention_dropout,
+        ffn_d_hidden=None,
+        ffn_d_hidden_multiplier=ffn_d_hidden_multiplier,
+        ffn_dropout=ffn_dropout,
+        residual_dropout=residual_dropout,
+        )
+
+        if torch.cuda.is_available():
+            FTTrans_model = FTTrans_model.cuda()
+
+        n_epochs=N_EPOCHS
+        learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
+        weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+        optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
+        n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+
+        y_val_hat_FTTrans = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
+        log_loss_FTTrans = log_loss(y_val_tensor.cpu().numpy(), y_val_hat_FTTrans.cpu().numpy())  # Calculate log loss
+
+        return log_loss_FTTrans
+
+    sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
+    study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='minimize')  # We want to minimize log loss
+    study_FTTrans.optimize(FTTrans_opt, n_trials=N_TRIALS)
+
+
+    FTTrans_model = FTTransformer(
+        n_cont_features=d_in,
+        cat_cardinalities=[],
+        d_out=1,  # For binary classification, output dimension should be 1
+        n_blocks=study_FTTrans.best_params['n_blocks'],
+        d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
+        attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
+        attention_dropout=study_FTTrans.best_params['attention_dropout'],
+        ffn_d_hidden=None,
+        ffn_d_hidden_multiplier=study_FTTrans.best_params['ffn_d_hidden_multiplier'],
+        ffn_dropout=study_FTTrans.best_params['ffn_dropout'],
+        residual_dropout=study_FTTrans.best_params['residual_dropout'],
+        )
+
+    if torch.cuda.is_available():
+        FTTrans_model = FTTrans_model.cuda()
+
+    n_epochs=study_FTTrans.best_params['n_epochs']
+    learning_rate=study_FTTrans.best_params['learning_rate']
+    weight_decay=study_FTTrans.best_params['weight_decay']
+    optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    criterion = torch.nn.BCEWithLogitsLoss()  # Use Binary Cross Entropy loss for binary classification
+
+    train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
+
+    # Point prediction
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in test_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_test_hat_FTTrans = torch.sigmoid(torch.Tensor(np.concatenate(predictions)))  # Apply sigmoid to get probabilities
+    log_loss_FTTrans = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.cpu().numpy())  # Calculate log loss
+    print("Log Loss FTTrans: ", log_loss_FTTrans)
+    del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
     if os.path.exists(CHECKPOINT_PATH):
         os.remove(CHECKPOINT_PATH)
     else:
