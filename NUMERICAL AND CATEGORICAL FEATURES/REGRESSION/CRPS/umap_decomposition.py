@@ -133,7 +133,7 @@ for task_id in benchmark_suite.tasks:
 
     # Convert data to PyTorch tensors
     # Modify X_train_, X_val, X_train, and X_test to have dummy variables
-    X = pd.get_dummies(X.astype(str), drop_first=True)
+    X = pd.get_dummies(X, drop_first=True)
 
     X_train = X.loc[close_index,:]
     X_test = X.loc[far_index,:]
@@ -438,7 +438,135 @@ for task_id in benchmark_suite.tasks:
     
     #### FFTransformer
     #### Skip for now, will do it later
-    crps_FTTrans = float("NaN")
+    def FTTrans_opt(trial):
+
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+
+        n_blocks = trial.suggest_int("n_blocks", 1, 5)
+        d_block_multiplier = trial.suggest_int("d_block_multiplier", 1, 25)
+        attention_n_heads = trial.suggest_int("attention_n_heads", 1, 20)
+        attention_dropout = trial.suggest_float("attention_dropout", 0, 1)
+        ffn_d_hidden_multiplier=trial.suggest_float("ffn_d_hidden_multiplier", 0.5, 3)
+        ffn_dropout = trial.suggest_float("ffn_dropout", 0, 1)
+        residual_dropout = trial.suggest_float("residual_dropout", 0, 1)
+
+        FTTrans_model = FTTransformer(
+        n_cont_features=d_in,
+        cat_cardinalities=[],
+        d_out=d_out,
+        n_blocks=n_blocks,
+        d_block=d_block_multiplier*attention_n_heads,
+        attention_n_heads=attention_n_heads,
+        attention_dropout=attention_dropout,
+        ffn_d_hidden=None,
+        ffn_d_hidden_multiplier=ffn_d_hidden_multiplier,
+        ffn_dropout=ffn_dropout,
+        residual_dropout=residual_dropout,
+        )
+
+        if torch.cuda.is_available():
+            FTTrans_model = FTTrans_model.cuda()
+
+        n_epochs=N_EPOCHS
+        learning_rate=trial.suggest_float('learning_rate', 0.0001, 0.05, log=True)
+        weight_decay=trial.suggest_float('weight_decay', 1e-8, 1e-3, log=True)
+        optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        criterion = torch.nn.MSELoss()
+
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=False, path=CHECKPOINT_PATH)
+        n_epochs=train_trans(FTTrans_model, criterion, optimizer, n_epochs, train__loader, val_loader, early_stopping, CHECKPOINT_PATH)
+        n_epochs = trial.suggest_int('n_epochs', n_epochs, n_epochs)
+
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in train__loader:
+                batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+
+        y_train__hat_FTTrans = np.concatenate(predictions)
+
+        # Estimate standard deviation of the prediction error
+        std_dev_error = np.std(y_train_ - y_train__hat_FTTrans)
+        
+        # Point prediction
+        predictions = []
+        with torch.no_grad():
+            for batch_X, _ in val_loader:
+                batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+                predictions.append(batch_predictions.cpu().numpy())
+
+        y_val_hat_FTTrans = np.concatenate(predictions)
+
+        # Calculate the CRPS for each prediction
+        crps_values = [crps_gaussian(y_val_np[i], mu=y_val_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_val_hat_FTTrans))]
+
+        # Calculate the mean CRPS
+        crps_FTTrans= np.mean(crps_values)
+
+        return crps_FTTrans
+
+    sampler_FTTrans = optuna.samplers.TPESampler(seed=seed)
+    study_FTTrans = optuna.create_study(sampler=sampler_FTTrans, direction='minimize')
+    study_FTTrans.optimize(FTTrans_opt, n_trials=N_TRIALS)
+
+
+    FTTrans_model = FTTransformer(
+        n_cont_features=d_in,
+        cat_cardinalities=[],
+        d_out=d_out,
+        n_blocks=study_FTTrans.best_params['n_blocks'],
+        d_block=study_FTTrans.best_params['d_block_multiplier']*study_FTTrans.best_params['attention_n_heads'],
+        attention_n_heads=study_FTTrans.best_params['attention_n_heads'],
+        attention_dropout=study_FTTrans.best_params['attention_dropout'],
+        ffn_d_hidden=None,
+        ffn_d_hidden_multiplier=study_FTTrans.best_params['ffn_d_hidden_multiplier'],
+        ffn_dropout=study_FTTrans.best_params['ffn_dropout'],
+        residual_dropout=study_FTTrans.best_params['residual_dropout'],
+        )
+
+    if torch.cuda.is_available():
+        FTTrans_model = FTTrans_model.cuda()
+
+    n_epochs=study_FTTrans.best_params['n_epochs'] 
+    learning_rate=study_FTTrans.best_params['learning_rate']
+    weight_decay=study_FTTrans.best_params['weight_decay']
+    optimizer=torch.optim.Adam(FTTrans_model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    criterion = torch.nn.MSELoss()
+
+    train_trans_no_early_stopping(FTTrans_model, criterion, optimizer, n_epochs, train_loader)
+
+    # Point prediction
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in train_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_train_hat_FTTrans = np.concatenate(predictions)
+
+    # Estimate standard deviation of the prediction error
+    std_dev_error = np.std(y_train - y_train_hat_FTTrans)
+    
+    # Point prediction
+    predictions = []
+    with torch.no_grad():
+        for batch_X, _ in test_loader:
+            batch_predictions = FTTrans_model(batch_X, None).reshape(-1,)
+            predictions.append(batch_predictions.cpu().numpy())
+
+    y_test_hat_FTTrans = np.concatenate(predictions)
+
+    # Calculate the CRPS for each prediction
+    crps_values = [crps_gaussian(y_test_np[i], mu=y_test_hat_FTTrans[i], sig=std_dev_error) for i in range(len(y_test_hat_FTTrans))]
+
+    # Calculate the mean CRPS
+    crps_FTTrans= np.mean(crps_values)
+
+    print("CRPS FTTrans: ", crps_FTTrans)
+    del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
     if os.path.exists(CHECKPOINT_PATH):
         os.remove(CHECKPOINT_PATH)
     else:
