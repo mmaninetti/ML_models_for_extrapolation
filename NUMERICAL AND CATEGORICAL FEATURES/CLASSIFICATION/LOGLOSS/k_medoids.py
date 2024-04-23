@@ -170,6 +170,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
 
     # Convert data to PyTorch tensors
     # Modify X_train_, X_val, X_train, and X_test to have dummy variables
+    non_dummy_cols = X.select_dtypes(exclude=['bool', 'category', 'object', 'string']).columns
     X = pd.get_dummies(X, drop_first=True).astype('float32')
 
     X_train = X.loc[close_index,:]
@@ -183,7 +184,6 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     y_val = y_train.loc[far_index_train]
 
     # Standardize the data for non-dummy variables
-    non_dummy_cols = X.select_dtypes(exclude=['bool']).columns
     mean_X_train_ = np.mean(X_train_[non_dummy_cols], axis=0)
     std_X_train_ = np.std(X_train_[non_dummy_cols], axis=0)
     X_train_[non_dummy_cols] = (X_train_[non_dummy_cols] - mean_X_train_) / std_X_train_
