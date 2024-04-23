@@ -128,7 +128,7 @@ for task_id in benchmark_suite.tasks:
 
     # Convert data to PyTorch tensors
     # Modify X_train_, X_val, X_train, and X_test to have dummy variables
-    X = pd.get_dummies(X, drop_first=True)
+    X = pd.get_dummies(X, drop_first=True).astype('float32')
 
     X_train = X.loc[close_index,:]
     X_test = X.loc[far_index,:]
