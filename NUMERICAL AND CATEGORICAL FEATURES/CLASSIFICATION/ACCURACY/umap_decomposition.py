@@ -90,9 +90,6 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     # Rename columns to avoid problems with LGBM
     X = X.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 
-    # Drop one of the highly correlated features
-    X = X.drop(high_corr_features, axis=1)
-
     # Transform y to int type, to then be able to apply BCEWithLogitsLoss
     # Create a label encoder
     le = LabelEncoder()
