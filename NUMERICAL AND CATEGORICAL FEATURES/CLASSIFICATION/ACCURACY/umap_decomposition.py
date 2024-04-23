@@ -137,7 +137,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
 
     # Convert data to PyTorch tensors
     # Modify X_train_, X_val, X_train, and X_test to have dummy variables
-    X = pd.get_dummies(X, drop_first=True)
+    X = pd.get_dummies(X, drop_first=True).astype('float32')
 
     X_train = X.loc[close_index,:]
     X_test = X.loc[far_index,:]
@@ -461,7 +461,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     accuracy_FTTrans = accuracy_score(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.ge(0.5).float().cpu().numpy())  # Calculate accuracy
     print("Accuracy FTTrans: ", accuracy_FTTrans)
     del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
-    
+
     if os.path.exists(CHECKPOINT_PATH):
         os.remove(CHECKPOINT_PATH)
     else:
