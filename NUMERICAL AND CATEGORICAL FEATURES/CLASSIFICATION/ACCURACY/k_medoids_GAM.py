@@ -281,7 +281,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     print("Accuracy GAM: ", accuracy_gam)
 
     # Load the existing DataFrame
-    df = pd.read_csv(f'RESULTS/K_MEDOIDS/{task_id}_gower_accuracy_results.csv')
+    df = pd.read_csv(f'RESULTS/K_MEDOIDS/{task_id}_k_medoids_accuracy_results.csv')
 
     # Add the columns with accuracy of GAM and GP
     df.loc[df['Method'] == 'GAM', 'Accuracy'] = accuracy_gam
@@ -290,4 +290,4 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     os.makedirs('RESULTS/K_MEDOIDS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/K_MEDOIDS/{task_id}_gower_accuracy_results.csv', index=False)
+    df.to_csv(f'RESULTS/K_MEDOIDS/{task_id}_k_medoids_accuracy_results.csv', index=False)

@@ -635,7 +635,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     df = pd.DataFrame(list(log_loss_results.items()), columns=['Method', 'Log Loss'])
 
     # Create the directory if it doesn't exist
-    os.makedirs('RESULTS/MAHALANOBIS', exist_ok=True)
+    os.makedirs('RESULTS/K_MEDOIDS', exist_ok=True)
 
     # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/MAHALANOBIS/{task_id}_mahalanobis_logloss_results.csv', index=False)
+    df.to_csv(f'RESULTS/K_MEDOIDS/{task_id}_k_medoids_logloss_results.csv', index=False)
