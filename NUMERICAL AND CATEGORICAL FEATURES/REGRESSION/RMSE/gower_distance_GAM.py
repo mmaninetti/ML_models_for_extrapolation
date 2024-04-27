@@ -33,10 +33,10 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361093
 for task_id in benchmark_suite.tasks:
 
-    if task_id == 361292:
+    if task_id == 361287:
         continue
 
-    if task_id < 361289:
+    if task_id < 361292:
         continue
 
     if task_id == 361097 or task_id == 361099 or task_id == 361103 or task_id == 361289 or task_id == 361292:
