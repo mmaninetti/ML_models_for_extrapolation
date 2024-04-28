@@ -1,0 +1,32 @@
+% latex table generated in R 4.1.1 by xtable 1.8-4 package
+% Fri Apr 26 15:04:35 2024
+\begin{table}[ht!]
+\centering
+\begingroup\footnotesize
+\begin{tabular}{llrllllrrrl}
+  \hline
+\hline
+task\_id & const. & log. reg. & GAM & RF & GBT & GP & engression & MLP & ResNet & FT-Trans. \\ 
+  \hline
+361110 & 0.701 & 0.54 &  & 0.469 & \textbf{0.442} & 0.53 & 0.54 & 0.52 & 0.60 & 0.525 \\ 
+  361111 & 0.696 & 0.66 & 0.664 & \textbf{0.656} & 0.657 & 0.67 & 0.67 & 0.67 & 0.69 & 0.662 \\ 
+  361113 & 0.694 & 0.50 &  & 0.503 & \textbf{0.483} & 0.806 & 2.43 & 0.52 & 0.52 & 0.535 \\ 
+  361282 & 0.695 & 0.65 &  & 0.623 & \textbf{0.621} & 0.635 & 0.64 & 0.64 & 0.66 & 0.655 \\ 
+  361283 & 0.723 & 0.58 &  & 0.494 & \textbf{0.489} & 0.493 & 0.60 & 0.52 & 0.73 & 0.494 \\ 
+  361285 & 0.699 & 0.61 & 0.618 & 0.481 & 0.48 & 0.575 & 0.58 & 0.48 & 0.56 & \textbf{0.456} \\ 
+  361286 & 0.703 & 0.62 & 0.606 & 0.6 & \textbf{0.594} &  & 0.62 & 0.61 & 0.66 & 0.611 \\ 
+   \hline
+Avg. diff. & 34.2 & 12.40 & 12.9 & 2.59 & \textbf{0.783} & 19.7 & 69.20 & 6.30 & 19.90 & 5.66 \\ 
+  Avg. acc. & 0e+00 & 30.80 & 33.4 & 87.8 & \textbf{96.6} & 31.6 & 9.43 & 53.30 & 16.10 & 54.4 \\ 
+  Avg. rank & 8.86 & 5.43 & 5.67 & 2.29 & \textbf{1.29} & 5.5 & 6.71 & 4.29 & 7.43 & 4.43 \\ 
+   \hline
+\hline
+\end{tabular}
+\endgroup
+\caption{Average test logloss. 
+                  Best results are bold. 
+                  'Avg. diff.' denotes the average relative difference in \% of a method compared to the best method.
+                  'Avg. acc.' denotes the average normalized accuracy in \% of a method.
+                  'Avg. rank' denotes the average rank of a method.} 
+\label{TABLES/table_results_logloss_clustering_num_and_cat_features}
+\end{table}

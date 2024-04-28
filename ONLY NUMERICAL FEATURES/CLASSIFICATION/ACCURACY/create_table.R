@@ -198,7 +198,7 @@ for (directory in list_directories) {
       
       # Calculate the lowest Accuracy
       highest_Accuracy <- max(Accuracy, na.rm=TRUE)
-      mid_Accuracy <- min(Accuracy, na.rm=TRUE)
+      mid_Accuracy <- sort(Accuracy, decreasing = FALSE, na.last=NA)[3]
       
       # Calculate the normalized Accuracy and add it to the data frame
       tmp <- data.frame()
@@ -496,7 +496,7 @@ for (directory in list_directories) {
       
       # Calculate the lowest Accuracy
       highest_Accuracy <- max(Accuracy, na.rm=TRUE)
-      mid_Accuracy <- min(Accuracy, na.rm=TRUE)
+      mid_Accuracy <- sort(Accuracy, decreasing = FALSE, na.last=NA)[3]
       
       # Calculate the normalized Accuracy and add it to the data frame
       tmp <- data.frame()
@@ -795,7 +795,7 @@ for (directory in list_directories) {
       
       # Calculate the lowest Accuracy
       highest_Accuracy <- max(Accuracy, na.rm=TRUE)
-      mid_Accuracy <- min(Accuracy, na.rm=TRUE)
+      mid_Accuracy <- sort(Accuracy, decreasing = FALSE, na.last=NA)[3]
       
       # Calculate the normalized Accuracy and add it to the data frame
       tmp <- data.frame()
@@ -1093,7 +1093,7 @@ for (directory in list_directories) {
       
       # Calculate the lowest Accuracy
       highest_Accuracy <- max(Accuracy, na.rm=TRUE)
-      mid_Accuracy <- min(Accuracy, na.rm=TRUE)
+      mid_Accuracy <- sort(Accuracy, decreasing = FALSE, na.last=NA)[3]
       
       # Calculate the normalized Accuracy and add it to the data frame
       tmp <- data.frame()
@@ -1392,7 +1392,7 @@ for (directory in list_directories) {
       
       # Calculate the lowest Accuracy
       highest_Accuracy <- max(Accuracy, na.rm=TRUE)
-      mid_Accuracy <- min(Accuracy, na.rm=TRUE)
+      mid_Accuracy <- sort(Accuracy, decreasing = FALSE, na.last=NA)[3]
       
       # Calculate the normalized Accuracy and add it to the data frame
       tmp <- data.frame()
