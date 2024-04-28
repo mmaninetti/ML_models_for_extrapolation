@@ -36,7 +36,10 @@ for task_id in benchmark_suite.tasks:
     if task_id == 361287:
         continue
 
-    if task_id == 361093:
+    if task_id<361289:
+        continue
+
+    if task_id == 361093 or task_id==361289:
         continue
 
     # Set the random seed for reproducibility

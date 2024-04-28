@@ -39,7 +39,7 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361093
 for task_id in benchmark_suite.tasks:
 
-    if task_id < 361287:
+    if task_id < 361292:
         continue
 
     # Set the random seed for reproducibility
@@ -441,7 +441,7 @@ for task_id in benchmark_suite.tasks:
     
     #### FFTransformer
     #### Skip for now, will do it later
-    if task_id==361097 or task_id==361287:
+    if task_id==361097 or task_id==361287 or task_id==361292:
         crps_FTTrans = float("NaN")
         print("CRPS FTTrans: ", crps_FTTrans)
     else:
