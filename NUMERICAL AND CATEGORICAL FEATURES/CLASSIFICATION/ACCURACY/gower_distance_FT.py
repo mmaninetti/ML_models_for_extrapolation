@@ -302,10 +302,6 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS/GOWER', exist_ok=True)
 
-    # Save the DataFrame to a CSV file
-    df.to_csv(f'RESULTS/GOWER/{task_id}_gower_accuracy_results.csv', index=False)
-
-
     # Load the existing DataFrame
     df = pd.read_csv(f'RESULTS/GOWER/{task_id}_gower_accuracy_results.csv')
 
