@@ -268,7 +268,7 @@ for (directory in list_directories) {
       for (method in methods) {
         tmp[[method]] <- numeric()
       }
-      tmp[1,]<-rank(logloss)
+      tmp[1,]<-rank(logloss, na.last="keep")
       df <- rbind(df, tmp)
     }
   }
@@ -332,8 +332,8 @@ print(tab, file = filename, sanitize.text.function = function(str) gsub("_", "\\
 ##############################################
 ########## ONLY MAHALANOBIS ##################
 ##############################################
-directory <- "RESULTS/MAHALANOBIS"
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM', 'GP')
+list_directories <- c("RESULTS/MAHALANOBIS")
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM','GP')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -364,7 +364,7 @@ for (task_id in task_ids)
   for (method in methods) {
     result_row[[method]] <- NA
   }
-  
+
   # Create a dataset for the logloss with the correct number of rows
   result_logloss <- data.frame(method = methods, stringsAsFactors = FALSE)
   
@@ -398,11 +398,11 @@ for (task_id in task_ids)
       # Extract the Method and logloss columns
       method <- results_dataset$Method
       logloss <- results_dataset$Log.Loss
-      
+
       logloss <- ifelse(logloss >= 0, logloss, NA)
       second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
       logloss[logloss > 5 * second_largest] <- NA
-      
+
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
     }
@@ -417,7 +417,7 @@ for (task_id in task_ids)
   {
     result_logloss_mean <- result_logloss$logloss
   }
-  
+
   # Append the result_logloss_mean to result_row
   result_row[, methods] <- result_logloss_mean
   
@@ -581,7 +581,7 @@ for (directory in list_directories) {
       for (method in methods) {
         tmp[[method]] <- numeric()
       }
-      tmp[1,]<-rank(logloss)
+      tmp[1,]<-rank(logloss, na.last="keep")
       df <- rbind(df, tmp)
     }
   }
@@ -892,7 +892,7 @@ for (directory in list_directories) {
       for (method in methods) {
         tmp[[method]] <- numeric()
       }
-      tmp[1,]<-rank(logloss)
+      tmp[1,]<-rank(logloss, na.last="keep")
       df <- rbind(df, tmp)
     }
   }
@@ -1203,7 +1203,7 @@ for (directory in list_directories) {
       for (method in methods) {
         tmp[[method]] <- numeric()
       }
-      tmp[1,]<-rank(logloss)
+      tmp[1,]<-rank(logloss, na.last="keep")
       df <- rbind(df, tmp)
     }
   }
@@ -1516,7 +1516,7 @@ for (directory in list_directories) {
       for (method in methods) {
         tmp[[method]] <- numeric()
       }
-      tmp[1,]<-rank(logloss)
+      tmp[1,]<-rank(logloss, na.last="keep")
       df <- rbind(df, tmp)
     }
   }
