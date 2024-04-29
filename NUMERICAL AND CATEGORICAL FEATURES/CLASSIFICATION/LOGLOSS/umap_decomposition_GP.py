@@ -36,9 +36,6 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361110
 for task_id in benchmark_suite.tasks:
 
-    if task_id<361283:
-        continue
-
     if task_id==361283:
         continue
 
@@ -226,7 +223,7 @@ for task_id in benchmark_suite.tasks:
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                     logloss_GP = log_loss(y_val, pred_resp)
                     print("Logloss GP temporary: ", logloss_GP)
-                    if logloss_GP < best_logloss:
+                    if logloss_GP < best_logloss and logloss_GP>0:
                         best_logloss = logloss_GP
                         best_approx = approx
                         best_kernel = kernel
@@ -240,7 +237,7 @@ for task_id in benchmark_suite.tasks:
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=False, predict_response=True)['mu']
                 logloss_GP = log_loss(y_val, pred_resp)
                 print("Logloss GP temporary: ", logloss_GP)
-                if logloss_GP < best_logloss:
+                if logloss_GP < best_logloss and logloss_GP>0:
                     best_logloss = logloss_GP
                     best_approx = approx
                     best_kernel = kernel
