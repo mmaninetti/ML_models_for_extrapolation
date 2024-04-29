@@ -35,12 +35,6 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361093
 for task_id in benchmark_suite.tasks:
 
-    if task_id<361289:
-        continue
-
-    if task_id == 361093 or task_id==361289 or task_id==361291 or task_id==361292:
-        continue
-
     # Set the random seed for reproducibility
     N_TRIALS=100
     N_SAMPLES=100
@@ -240,6 +234,8 @@ for task_id in benchmark_suite.tasks:
 
     #### GP model
     approximations = ["vecchia", "fitc"]
+    if task_id == 361093 or task_id==361289 or task_id==361291 or task_id==361292:
+        approximations = ["vecchia"]
     kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
     best_RMSE = float('inf')    
@@ -254,7 +250,7 @@ for task_id in benchmark_suite.tasks:
                     pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                     RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
                     print("RMSE GP temporary: ", RMSE_GP)
-                    if RMSE_GP < best_RMSE:
+                    if RMSE_GP < best_RMSE and RMSE_GP > 0:
                         best_RMSE = RMSE_GP
                         best_approx = approx
                         best_kernel = kernel
@@ -265,7 +261,7 @@ for task_id in benchmark_suite.tasks:
                 pred_resp = gp_model.predict(gp_coords_pred=X_val, X_pred=intercept_val, predict_var=True, predict_response=True)['mu']
                 RMSE_GP = np.sqrt(np.mean((y_val-pred_resp)**2))
                 print("RMSE GP temporary: ", RMSE_GP)
-                if RMSE_GP < best_RMSE:
+                if RMSE_GP < best_RMSE and RMSE_GP > 0:
                     best_RMSE = RMSE_GP
                     best_approx = approx
                     best_kernel = kernel
