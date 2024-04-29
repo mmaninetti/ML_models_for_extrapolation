@@ -39,7 +39,7 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361093
 for task_id in benchmark_suite.tasks:
 
-    if task_id == 361093:
+    if task_id != 361093 or task_id<361289:
         continue
 
     # Set the random seed for reproducibility
@@ -205,6 +205,8 @@ for task_id in benchmark_suite.tasks:
 
     #### GP model
     approximations = ["vecchia", "fitc"]
+    if task_id==361093 or task_id==361289:
+        approximations = ["vecchia"]
     kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
     best_CRPS = float('inf')    

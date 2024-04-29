@@ -197,7 +197,7 @@ for task_id in benchmark_suite.tasks:
     #### GP model
     approximations = ["vecchia", "fitc"]
     if task_id == 361093 or task_id==361289:
-        aprroximations = ["vecchia"]
+        approximations = ["vecchia"]
     kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
     best_RMSE = float('inf')    
