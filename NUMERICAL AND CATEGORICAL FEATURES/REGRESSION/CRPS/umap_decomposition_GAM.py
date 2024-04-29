@@ -39,10 +39,10 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361093
 for task_id in benchmark_suite.tasks:
 
-    if task_id < 361094:
+    if task_id < 361096:
         continue
 
-    if task_id == 361094:
+    if task_id == 361096:
         continue
 
     # Set the random seed for reproducibility
