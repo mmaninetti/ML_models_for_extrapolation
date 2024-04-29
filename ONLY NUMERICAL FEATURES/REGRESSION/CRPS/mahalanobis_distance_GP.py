@@ -196,7 +196,7 @@ for task_id in benchmark_suite.tasks:
                     crps_values = [crps_gaussian(y_val_np[i], mu=pred_mu[i], sig=pred_std[i]) for i in range(len(y_val))] 
                     CRPS_GP = np.mean(crps_values)
                     print("CRPS GP temporary: ", CRPS_GP)
-                    if CRPS_GP < best_CRPS:
+                    if CRPS_GP < best_CRPS and CRPS_GP>0:
                         best_CRPS = CRPS_GP
                         best_approx = approx
                         best_kernel = kernel
@@ -209,7 +209,7 @@ for task_id in benchmark_suite.tasks:
                 crps_values = [crps_gaussian(y_val_np[i], mu=pred_mu[i], sig=pred_std[i]) for i in range(len(y_val))] 
                 CRPS_GP = np.mean(crps_values)
                 print("CRPS GP temporary: ", CRPS_GP)
-                if CRPS_GP < best_CRPS:
+                if CRPS_GP < best_CRPS and CRPS_GP>0:
                     best_CRPS = CRPS_GP
                     best_approx = approx
                     best_kernel = kernel
