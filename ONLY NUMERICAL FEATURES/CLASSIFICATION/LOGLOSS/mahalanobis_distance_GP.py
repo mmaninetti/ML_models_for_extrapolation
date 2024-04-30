@@ -191,7 +191,7 @@ for task_id in benchmark_suite.tasks:
 
     #### GP model
     approximations = ["vecchia", "fitc"]
-    if task_id==361062 or task_id==361068:
+    if task_id==361062 or task_id==361068 or task_id==361277:
         approximations = ["vecchia"]
     kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
