@@ -34,7 +34,7 @@ for task_id in benchmark_suite.tasks:
     if task_id==361276:
         continue
 
-    if task_id < 361065:
+    if task_id < 361068:
         continue
 
     if task_id==361055 or task_id==361060 or task_id==361063 or task_id==361065:
@@ -198,7 +198,7 @@ for task_id in benchmark_suite.tasks:
 
     #### GP model
     approximations = ["vecchia", "fitc"]
-    if task_id == 361065:
+    if task_id == 361068:
         approximations = ["fitc"]
     kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
