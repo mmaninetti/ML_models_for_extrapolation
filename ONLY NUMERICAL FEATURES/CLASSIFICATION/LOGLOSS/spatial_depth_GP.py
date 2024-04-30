@@ -36,6 +36,9 @@ for task_id in benchmark_suite.tasks:
     if task_id==361276:
         continue
 
+    if task_id < 361062:
+        continue
+
     # Set the random seed for reproducibility
     N_TRIALS=100
     N_SAMPLES=100
@@ -193,6 +196,8 @@ for task_id in benchmark_suite.tasks:
 
     #### GP model
     approximations = ["vecchia", "fitc"]
+    if task_id==361062:
+        approximations = ["vecchia"]
     kernels = ["matern", "gaussian"]
     shapes = [0.5, 1.5, 2.5]
     best_logloss = float('inf')    
