@@ -83,8 +83,8 @@ for (task_id in task_ids)
       RMSE <- results_dataset$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
 
       # Append the Method and RMSE to the result_row
       result_RMSE <- cbind(result_RMSE, RMSE)
@@ -147,8 +147,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the lowest RMSE
       lowest_RMSE <- min(RMSE, na.rm=TRUE)
@@ -201,8 +201,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the lowest RMSE
       mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
@@ -256,8 +256,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
@@ -296,8 +296,8 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -392,8 +392,8 @@ for (task_id in task_ids)
       RMSE <- results_dataset$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
 
       # Append the Method and RMSE to the result_row
       result_RMSE <- cbind(result_RMSE, RMSE)
@@ -456,8 +456,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the lowest RMSE
       lowest_RMSE <- min(RMSE, na.rm=TRUE)
@@ -510,8 +510,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the lowest RMSE
       mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
@@ -565,8 +565,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
@@ -605,8 +605,8 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -699,8 +699,8 @@ for (task_id in task_ids)
       RMSE <- results_dataset$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
 
       # Append the Method and RMSE to the result_row
       result_RMSE <- cbind(result_RMSE, RMSE)
@@ -763,8 +763,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the lowest RMSE
       lowest_RMSE <- min(RMSE, na.rm=TRUE)
@@ -817,8 +817,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the lowest RMSE
       mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
@@ -872,8 +872,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
@@ -912,8 +912,8 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -1006,8 +1006,8 @@ for (task_id in task_ids)
       RMSE <- results_dataset$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
 
       # Append the Method and RMSE to the result_row
       result_RMSE <- cbind(result_RMSE, RMSE)
@@ -1070,8 +1070,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the lowest RMSE
       lowest_RMSE <- min(RMSE, na.rm=TRUE)
@@ -1124,8 +1124,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the lowest RMSE
       mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
@@ -1179,8 +1179,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      second_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[2]
-      RMSE[RMSE > 5 * second_largest] <- NA
+      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
+      RMSE[RMSE > 5 * third_largest] <- NA
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
@@ -1219,8 +1219,8 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
