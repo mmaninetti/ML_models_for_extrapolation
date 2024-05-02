@@ -282,9 +282,9 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_values <- apply(output[, -1], 1, function(x) max(x, na.rm=TRUE))
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
-highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
+highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -580,9 +580,9 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_values <- apply(output[, -1], 1, function(x) max(x, na.rm=TRUE))
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
-highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
+highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -879,9 +879,9 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_values <- apply(output[, -1], 1, function(x) max(x, na.rm=TRUE))
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
-highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
+highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -1177,9 +1177,9 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_values <- apply(output[, -1], 1, function(x) max(x, na.rm=TRUE))
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
-highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
+highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -1476,9 +1476,9 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_values <- apply(output[, -1], 1, function(x) max(x, na.rm=TRUE))
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
-highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=100) & 0==is.na(highest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
+highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)] <- format(highest_values[(highest_values<0.1 | highest_values>=1000) & 0==is.na(highest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
