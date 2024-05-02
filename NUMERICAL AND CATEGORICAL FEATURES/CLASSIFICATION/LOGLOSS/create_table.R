@@ -84,8 +84,8 @@ for (task_id in task_ids)
       logloss <- results_dataset$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
 
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
@@ -148,8 +148,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the lowest logloss
       lowest_logloss <- min(logloss, na.rm=TRUE)
@@ -202,8 +202,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the lowest logloss
       mid_logloss <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
@@ -257,8 +257,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the normalized logloss and add it to the data frame
       tmp <- data.frame()
@@ -297,8 +297,8 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -394,8 +394,8 @@ for (task_id in task_ids)
       logloss <- results_dataset$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
 
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
@@ -458,8 +458,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
       
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the lowest logloss
       lowest_logloss <- min(logloss, na.rm=TRUE)
@@ -512,8 +512,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
       
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the lowest logloss
       mid_logloss <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
@@ -567,8 +567,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
       
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the normalized logloss and add it to the data frame
       tmp <- data.frame()
@@ -607,8 +607,8 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -703,8 +703,8 @@ for (task_id in task_ids)
       logloss <- results_dataset$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
 
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
@@ -767,8 +767,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the lowest logloss
       lowest_logloss <- min(logloss, na.rm=TRUE)
@@ -821,8 +821,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the lowest logloss
       mid_logloss <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
@@ -876,8 +876,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the normalized logloss and add it to the data frame
       tmp <- data.frame()
@@ -916,8 +916,8 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {
@@ -1013,8 +1013,8 @@ for (task_id in task_ids)
       logloss <- results_dataset$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
 
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
@@ -1077,8 +1077,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the lowest logloss
       lowest_logloss <- min(logloss, na.rm=TRUE)
@@ -1131,8 +1131,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the lowest logloss
       mid_logloss <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
@@ -1186,8 +1186,8 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      second_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[2]
-      logloss[logloss > 5 * second_largest] <- NA
+      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
+      logloss[logloss > 5 * third_largest] <- NA
       
       # Calculate the normalized logloss and add it to the data frame
       tmp <- data.frame()
@@ -1226,8 +1226,8 @@ lowest_values <- apply(output[, -1], 1, function(x) min(x, na.rm=TRUE))
 highest_value <- max(output[nrow(output) - 1, -1], na.rm=TRUE)
 
 # Convert numbers smaller than 0.1 and bigger than 100 to scientific notation
-output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=100) & 0==is.na(output[, -1])], scientific = TRUE)
-lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=100) & 0==is.na(lowest_values)], scientific=TRUE)
+output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])] <- format(output[, -1][(output[, -1] < 0.1 | output[, -1] >=1000) & 0==is.na(output[, -1])], scientific = TRUE)
+lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)] <- format(lowest_values[(lowest_values<0.1 | lowest_values>=1000) & 0==is.na(lowest_values)], scientific=TRUE)
 
 # Loop through each row and format the lowest value and highest value in bold
 for (i in 1:nrow(output)) {

@@ -167,6 +167,14 @@ for task_id in benchmark_suite.tasks:
     close_index_train=labels_.index[np.where(labels_==False)[0]]
     far_index_train=labels_.index[np.where(labels_==True)[0]]
 
+    # Check if categorical variables have the same cardinality in X and X_train_, and remove the ones that don't
+    dummy_cols = X.select_dtypes(['bool', 'category', 'object', 'string']).columns
+    X_train = X.loc[close_index,:]
+    X_train_ = X_train.loc[close_index_train,:]
+    for col in dummy_cols:
+        if len(X[col].unique()) != len(X_train_[col].unique()):
+            X = X.drop(col, axis=1)
+
     # Convert data to PyTorch tensors
     # Modify X_train_, X_val, X_train, and X_test to have dummy variables
     non_dummy_cols = X.select_dtypes(exclude=['bool', 'category', 'object', 'string']).columns
