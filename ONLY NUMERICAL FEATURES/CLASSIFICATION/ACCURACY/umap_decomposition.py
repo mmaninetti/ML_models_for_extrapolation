@@ -571,69 +571,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the benchmark
     print("Accuracy constant prediction: ", accuracy_constant)
 
     # GAM model
-    '''
-    if (task_id!=361062) and (task_id!=361063) and (task_id!=361065) and (task_id!=361066):
-        def gam_model(trial):
-
-            n_splines = []
-            lam = []
-            spline_order = []
-
-            # Iterate over each covariate in X_train_
-            for col in X_train_.columns:
-                # Define the search space for n_splines, lam, and spline_order
-                n_splines.append(trial.suggest_int(f'n_splines_{col}', 10, 100))
-                lam.append(trial.suggest_float(f'lam_{col}', 1e-3, 1e3, log=True))
-                spline_order.append(trial.suggest_int(f'spline_order_{col}', 1, 5))
-            
-            # Create and train the model
-            gam = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam).fit(X_train_, y_train_)
-
-            # Predict on the validation set and calculate the accuracy
-            y_val_hat_gam = gam.predict(X_val)
-            accuracy_gam = accuracy_score(y_val, y_val_hat_gam)
-
-            return accuracy_gam
-
-        # Create the sampler and study
-        sampler_gam = optuna.samplers.TPESampler(seed=seed)
-        study_gam = optuna.create_study(sampler=sampler_gam, direction='maximize')
-
-        # Optimize the model
-        study_gam.optimize(gam_model, n_trials=N_TRIALS)
-
-        n_splines = []
-        lam = []
-        spline_order = []
-
-        # Create the final model with the best parameters
-        best_params = study_gam.best_params
-
-        # Iterate over each covariate in X_train_
-        for col in X_train.columns:
-            # Define the search space for n_splines, lam, and spline_order
-            n_splines.append(best_params[f'n_splines_{col}'])
-            lam.append(best_params[f'lam_{col}'])
-            spline_order.append(best_params[f'spline_order_{col}'])
-
-        final_gam_model = LogisticGAM(n_splines=n_splines, spline_order=spline_order, lam=lam)
-
-        # Fit the model
-        final_gam_model.fit(X_train, y_train)
-
-        # Predict on the test set
-        y_test_hat_gam = final_gam_model.predict(X_test)
-        # Calculate the accuracy
-        accuracy_gam = accuracy_score(y_test, y_test_hat_gam)
-        print("Accuracy GAM: ", accuracy_gam)
-
-        accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': accuracy_gam} 
-
-    else:
-        accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': float("NaN")} 
-    '''
-
-    accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': float("NaN")}
+    accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': float("NaN"), 'GP': float("NaN")}
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])
 
