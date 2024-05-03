@@ -629,7 +629,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     log_loss_gam = float("NaN")
     print("Log Loss GAM: ", log_loss_gam)
     
-    log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam, 'GP': logloss_GP}
+    log_loss_results = {'constant': log_loss_constant, 'MLP': log_loss_MLP, 'ResNet': log_loss_ResNet, 'FTTrans': log_loss_FTTrans, 'boosted_trees': log_loss_boosted, 'rf': log_loss_rf, 'logistic_regression': log_loss_logreg, 'engression': log_loss_engression, 'GAM': log_loss_gam: logloss_GP}
 
 
     # Convert the dictionary to a DataFrame

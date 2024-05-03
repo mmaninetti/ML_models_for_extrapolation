@@ -494,7 +494,7 @@ for task_id in benchmark_suite.tasks:
     # For now, just set it to Nan
     RMSE_GP = float("NaN")
 
-    RMSE_results = {'constant': RMSE_constant, 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam, 'GP': RMSE_GP} 
+    RMSE_results = {'constant': RMSE_constant, 'MLP': RMSE_MLP.item(), 'ResNet': RMSE_ResNet.item(), 'FTTrans': RMSE_FTTrans, 'boosted_trees': RMSE_boosted, 'rf': RMSE_rf, 'linear_regression': RMSE_linreg, 'engression': RMSE_engression.item(), 'GAM': RMSE_gam: RMSE_GP} 
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(RMSE_results.items()), columns=['Method', 'RMSE'])

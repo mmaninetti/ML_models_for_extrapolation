@@ -20,7 +20,7 @@ for (method in methods) {
 }
 
 list_directories <- c("RESULTS/K_MEDOIDS", "RESULTS/UMAP_DECOMPOSITION", "RESULTS/GOWER")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM','GP')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -76,7 +76,7 @@ for (task_id in task_ids)
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and RMSE columns
       method <- results_dataset$Method
@@ -109,7 +109,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and RMSE columns
@@ -119,7 +119,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -141,7 +141,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -174,7 +174,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -195,7 +195,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -229,7 +229,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -250,7 +250,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -279,7 +279,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
@@ -329,7 +329,7 @@ print(tab, file = filename, sanitize.text.function = function(str) gsub("_", "\\
 ############# ONLY K_MEDOIDS ###############
 ##############################################
 list_directories <- c("RESULTS/K_MEDOIDS")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM','GP')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -385,7 +385,7 @@ for (task_id in task_ids)
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and RMSE columns
       method <- results_dataset$Method
@@ -418,7 +418,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and RMSE columns
@@ -428,7 +428,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -450,7 +450,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -483,7 +483,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -504,7 +504,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -538,7 +538,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -559,7 +559,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -588,7 +588,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
@@ -636,7 +636,7 @@ print(tab, file = filename, sanitize.text.function = function(str) gsub("_", "\\
 ############# ONLY GOWER DISTANCE #############
 ##############################################
 list_directories <- c("RESULTS/GOWER")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM','GP')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -692,7 +692,7 @@ for (task_id in task_ids)
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and RMSE columns
       method <- results_dataset$Method
@@ -725,7 +725,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and RMSE columns
@@ -735,7 +735,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -757,7 +757,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -790,7 +790,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -811,7 +811,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -845,7 +845,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -866,7 +866,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -895,7 +895,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
@@ -943,7 +943,7 @@ print(tab, file = filename, sanitize.text.function = function(str) gsub("_", "\\
 ############# ONLY UMAP ######################
 ##############################################
 list_directories <- c("RESULTS/UMAP_DECOMPOSITION")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM','GP')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'linear_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -999,7 +999,7 @@ for (task_id in task_ids)
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and RMSE columns
       method <- results_dataset$Method
@@ -1032,7 +1032,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and RMSE columns
@@ -1042,7 +1042,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'lin. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -1064,7 +1064,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -1097,7 +1097,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -1118,7 +1118,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -1152,7 +1152,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -1173,7 +1173,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the RMSE column
       RMSE <- table$RMSE
@@ -1202,7 +1202,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "linear_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 

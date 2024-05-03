@@ -493,7 +493,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     accuracy_gam = float("NaN")
     print("Accuracy GAM: ", accuracy_gam)
 
-    accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': accuracy_gam, 'GP': accuracy_GP} 
+    accuracy_results = {'Constant': accuracy_constant, 'MLP': accuracy_MLP, 'ResNet': accuracy_ResNet, 'FTTrans': accuracy_FTTrans, 'boosted_trees': accuracy_boosted, 'rf': accuracy_rf, 'logistic_regression': accuracy_logreg, 'engression': accuracy_engression, 'GAM': accuracy_gam: accuracy_GP} 
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(accuracy_results.items()), columns=['Method', 'Accuracy'])

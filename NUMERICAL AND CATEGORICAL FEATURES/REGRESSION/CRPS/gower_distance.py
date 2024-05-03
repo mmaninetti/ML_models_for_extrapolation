@@ -691,7 +691,7 @@ for task_id in benchmark_suite.tasks:
     # For now, just set it to Nan
     CRPS_GP = float("NaN")
 
-    crps_results = {'constant': CRPS_constant, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'distributional_boosted_trees': CRPS_boosted_LSS, 'drf': CRPS_drf, 'boosted_trees': CRPS_boosted, 'rf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression, 'GAM': crps_gam, 'GP': CRPS_GP}
+    crps_results = {'constant': CRPS_constant, 'MLP': crps_MLP, 'ResNet': crps_ResNet, 'FTTrans': crps_FTTrans, 'distributional_boosted_trees': CRPS_boosted_LSS, 'drf': CRPS_drf, 'boosted_trees': CRPS_boosted, 'rf': CRPS_rf, 'linear_regression': CRPS_linreg, 'engression': CRPS_engression, 'GAM': crps_gam: CRPS_GP}
 
     # Convert the dictionary to a DataFrame
     df = pd.DataFrame(list(crps_results.items()), columns=['Method', 'CRPS'])
