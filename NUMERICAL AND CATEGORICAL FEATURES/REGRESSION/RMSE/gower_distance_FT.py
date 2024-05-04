@@ -309,7 +309,7 @@ for task_id in benchmark_suite.tasks:
     df = pd.read_csv(f'RESULTS/GOWER/{task_id}_gower_RMSE_results.csv')
 
     # Add the columns with RMSE of GAM and GP
-    df.loc[df['Method'] == 'FTTrans', 'RMSE'] = RMSE_FTTrans.item()
+    df.loc[df['Method'] == 'FTTrans', 'RMSE'] = RMSE_FTTrans
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS/GOWER', exist_ok=True)
