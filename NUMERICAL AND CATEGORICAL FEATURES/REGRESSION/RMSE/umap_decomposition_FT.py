@@ -315,7 +315,7 @@ for task_id in benchmark_suite.tasks:
     df = pd.read_csv(f'RESULTS/UMAP_DECOMPOSITION/{task_id}_umap_decomposition_RMSE_results.csv')
 
     # Add the columns with RMSE of GAM and GP
-    df.loc[df['Method'] == 'FTTrans', 'RMSE'] = RMSE_FTTrans.item()
+    df.loc[df['Method'] == 'FTTrans', 'RMSE'] = RMSE_FTTrans
 
     # Create the directory if it doesn't exist
     os.makedirs('RESULTS/UMAP_DECOMPOSITION', exist_ok=True)
