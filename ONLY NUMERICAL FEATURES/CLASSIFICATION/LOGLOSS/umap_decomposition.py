@@ -458,7 +458,6 @@ for task_id in benchmark_suite.tasks:
         log_loss_FTTrans = log_loss(y_test_tensor.cpu().numpy(), y_test_hat_FTTrans.cpu().numpy())  # Calculate log loss
         print("Log Loss FTTrans: ", log_loss_FTTrans)
         del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
-    del FTTrans_model, optimizer, criterion, y_test_hat_FTTrans, predictions
     if os.path.exists(CHECKPOINT_PATH):
         os.remove(CHECKPOINT_PATH)
     else:
