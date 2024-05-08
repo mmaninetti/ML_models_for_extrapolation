@@ -83,8 +83,8 @@ for (task_id in task_ids)
       RMSE <- results_dataset$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
 
       # Append the Method and RMSE to the result_row
       result_RMSE <- cbind(result_RMSE, RMSE)
@@ -147,8 +147,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest RMSE
       lowest_RMSE <- min(RMSE, na.rm=TRUE)
@@ -201,8 +201,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest RMSE
       mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
@@ -256,8 +256,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
@@ -392,8 +392,8 @@ for (task_id in task_ids)
       RMSE <- results_dataset$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
 
       # Append the Method and RMSE to the result_row
       result_RMSE <- cbind(result_RMSE, RMSE)
@@ -456,8 +456,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest RMSE
       lowest_RMSE <- min(RMSE, na.rm=TRUE)
@@ -510,8 +510,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest RMSE
       mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
@@ -565,8 +565,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
@@ -699,8 +699,8 @@ for (task_id in task_ids)
       RMSE <- results_dataset$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
 
       # Append the Method and RMSE to the result_row
       result_RMSE <- cbind(result_RMSE, RMSE)
@@ -763,8 +763,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest RMSE
       lowest_RMSE <- min(RMSE, na.rm=TRUE)
@@ -817,8 +817,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest RMSE
       mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
@@ -872,8 +872,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()
@@ -1006,8 +1006,8 @@ for (task_id in task_ids)
       RMSE <- results_dataset$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
 
       # Append the Method and RMSE to the result_row
       result_RMSE <- cbind(result_RMSE, RMSE)
@@ -1070,8 +1070,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest RMSE
       lowest_RMSE <- min(RMSE, na.rm=TRUE)
@@ -1124,8 +1124,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest RMSE
       mid_RMSE <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
@@ -1179,8 +1179,8 @@ for (directory in list_directories) {
       RMSE <- table$RMSE
 
       RMSE <- ifelse(RMSE >= 0, RMSE, NA)
-      third_largest <- sort(RMSE, decreasing = TRUE, na.last=NA)[3]
-      RMSE[RMSE > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the normalized RMSE and add it to the data frame
       tmp <- data.frame()

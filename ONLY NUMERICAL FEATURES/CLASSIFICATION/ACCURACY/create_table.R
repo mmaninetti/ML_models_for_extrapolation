@@ -19,8 +19,8 @@ for (method in methods) {
   df[[method]] <- numeric()
 }
 
-list_directories <- c("RESULTS/CLUSTERING", "RESULTS/UMAP_DECOMPOSITION", "RESULTS/SPATIAL_DEPTH", "RESULTS/MAHALANOBIS")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM','GP')
+list_directories <- c("RESULTS/CLUSTERING", "RESULTS/UMAP_DECOMPOSITION", "RESULTS/SPATIAL_DEPTH", "RESULTS/MAHALANOBIS", "RESULTS/GOWER", "RESULTS/K_MEDOIDS", "RESULTS/UMAP_DECOMPOSITION_CAT")
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -63,7 +63,7 @@ for (task_id in task_ids)
     {
       filename <- file.path(directory, paste0(task_id, "_clustering_accuracy_results.csv"))
     }
-    if (directory=="RESULTS/UMAP_DECOMPOSITION")
+    if (directory=="RESULTS/UMAP_DECOMPOSITION" | directory=="RESULTS/UMAP_DECOMPOSITION_CAT")
     {
       filename <- file.path(directory, paste0(task_id, "_umap_decomposition_accuracy_results.csv"))
     }
@@ -75,12 +75,20 @@ for (task_id in task_ids)
     {
       filename <- file.path(directory, paste0(task_id, "_mahalanobis_accuracy_results.csv"))
     }
+    if (directory=="RESULTS/GOWER")
+    {
+      filename <- file.path(directory, paste0(task_id, "_gower_accuracy_results.csv"))
+    }
+    if (directory=="RESULTS/K_MEDOIDS")
+    {
+      filename <- file.path(directory, paste0(task_id, "_k_medoids_accuracy_results.csv"))
+    }
     
     # Check if the file exists
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and Accuracy columns
       method <- results_dataset$Method
@@ -109,7 +117,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and Accuracy columns
@@ -119,7 +127,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -141,7 +149,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -170,7 +178,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -191,7 +199,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -221,7 +229,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -242,7 +250,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -267,7 +275,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
@@ -318,7 +326,7 @@ print(tab, file = filename, sanitize.text.function = function(str) gsub("_", "\\
 ############# ONLY MAHALANOBIS #############
 ############################################
 list_directories <- c("RESULTS/MAHALANOBIS")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM','GP')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -378,7 +386,7 @@ for (task_id in task_ids)
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and Accuracy columns
       method <- results_dataset$Method
@@ -407,7 +415,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and Accuracy columns
@@ -417,7 +425,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -439,7 +447,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -468,7 +476,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -489,7 +497,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -519,7 +527,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -540,7 +548,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -565,7 +573,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
@@ -617,7 +625,7 @@ print(tab, file = filename, sanitize.text.function = function(str) gsub("_", "\\
 ############################################
 
 list_directories <- c("RESULTS/SPATIAL_DEPTH")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM','GP')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -677,7 +685,7 @@ for (task_id in task_ids)
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and Accuracy columns
       method <- results_dataset$Method
@@ -706,7 +714,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and Accuracy columns
@@ -716,7 +724,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -738,7 +746,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -767,7 +775,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -788,7 +796,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -818,7 +826,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -839,7 +847,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -864,7 +872,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
@@ -915,7 +923,7 @@ print(tab, file = filename, sanitize.text.function = function(str) gsub("_", "\\
 ############# ONLY CLUSTERING #############
 ############################################
 list_directories <- c("RESULTS/CLUSTERING")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM','GP')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -975,7 +983,7 @@ for (task_id in task_ids)
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and Accuracy columns
       method <- results_dataset$Method
@@ -1004,7 +1012,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and Accuracy columns
@@ -1014,7 +1022,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -1036,7 +1044,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -1065,7 +1073,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -1086,7 +1094,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -1116,7 +1124,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -1137,7 +1145,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -1162,7 +1170,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 
@@ -1214,7 +1222,7 @@ print(tab, file = filename, sanitize.text.function = function(str) gsub("_", "\\
 ############# ONLY UMAP ####################
 ############################################
 list_directories <- c("RESULTS/UMAP_DECOMPOSITION")
-methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM','GP')
+methods <- c('constant', 'MLP', 'ResNet', 'FTTrans', 'boosted_trees', 'rf', 'logistic_regression', 'engression', 'GAM')
 
 #### Define the unique task_ids
 task_ids <- c()
@@ -1274,7 +1282,7 @@ for (task_id in task_ids)
     if (file.exists(filename))
     {
       # Load the results dataset
-      results_dataset <- read.csv(filename)
+      results_dataset <- head(read.csv(filename),-1)
       
       # Extract the Method and Accuracy columns
       method <- results_dataset$Method
@@ -1303,7 +1311,7 @@ for (task_id in task_ids)
 }
 
 # Reorder the columns in results_agg
-results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+results_agg <- results_agg[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 
 
 # Print the new dataset with the Method and Accuracy columns
@@ -1313,7 +1321,7 @@ results<-results_agg
 
 # Change names
 models <- methods
-models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', "GP", 'engression', 'MLP', 'ResNet', 'FT-Trans.')
+models_new_name <- c('const.', 'log. reg.', 'GAM', 'RF', 'GBT', 'engression', 'MLP', 'ResNet', 'FT-Trans.')
 # Change names
 colnames(results) <- c("task_id", models_new_name)
 
@@ -1335,7 +1343,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -1364,7 +1372,7 @@ for (method in methods) {
   avg_rel_diff[[method]] <- mean_rel_diff[i]
  i=i+1
 }
-avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rel_diff <- avg_rel_diff[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rel_diff) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rel_diff)
 
@@ -1385,7 +1393,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -1415,7 +1423,7 @@ for (method in methods) {
   avg_norm_acc[[method]] <- mean_norm_acc[i]
  i=i+1
 }
-avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_norm_acc <- avg_norm_acc[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_norm_acc) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_norm_acc)
 
@@ -1436,7 +1444,7 @@ for (directory in list_directories) {
       filepath <- file.path(directory, filename)
       
       # Read the CSV file into a data frame
-      table <- read.csv(filepath)
+      table <- head(read.csv(filepath),-1)
       
       # Extract the Accuracy column
       Accuracy <- table$Accuracy
@@ -1461,7 +1469,7 @@ for (method in methods) {
   avg_rank[[method]] <- mean_rank[i]
   i=i+1
 }
-avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "GP", "engression", "MLP", "ResNet", "FTTrans")]
+avg_rank <- avg_rank[,c("task_id", "constant", "logistic_regression", "GAM", "rf", "boosted_trees", "engression", "MLP", "ResNet", "FTTrans")]
 colnames(avg_rank) <- c("task_id", models_new_name)
 results <- bind_rows(results, avg_rank)
 

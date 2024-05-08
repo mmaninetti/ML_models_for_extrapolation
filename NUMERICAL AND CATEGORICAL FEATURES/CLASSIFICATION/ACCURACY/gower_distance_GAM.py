@@ -35,9 +35,6 @@ benchmark_suite = openml.study.get_suite(SUITE_ID)  # obtain the benchmark suite
 #task_id=361110
 for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
 
-    if task_id < 361285:
-        continue
-
     if task_id ==361110 or task_id ==361111 or task_id ==361113 or task_id==361282 or task_id==361285:
         continue
 
@@ -46,7 +43,7 @@ for task_id in benchmark_suite.tasks:  # iterate over all tasks in the suite
     N_SAMPLES=100
     PATIENCE=40
     N_EPOCHS=1000
-    GP_ITERATIONS=1000
+    
     BATCH_SIZE=1024
     seed=10
     torch.cuda.manual_seed_all(seed)
