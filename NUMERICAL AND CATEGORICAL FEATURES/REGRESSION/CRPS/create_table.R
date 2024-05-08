@@ -83,8 +83,8 @@ for (task_id in task_ids)
       CRPS <- results_dataset$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
 
       # Append the Method and CRPS to the result_row
       result_CRPS <- cbind(result_CRPS, CRPS)
@@ -147,8 +147,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest CRPS
       lowest_CRPS <- min(CRPS, na.rm=TRUE)
@@ -201,8 +201,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest CRPS
       mid_CRPS <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
@@ -256,8 +256,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the normalized CRPS and add it to the data frame
       tmp <- data.frame()
@@ -391,8 +391,8 @@ for (task_id in task_ids)
       CRPS <- results_dataset$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
 
       # Append the Method and CRPS to the result_row
       result_CRPS <- cbind(result_CRPS, CRPS)
@@ -455,8 +455,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest CRPS
       lowest_CRPS <- min(CRPS, na.rm=TRUE)
@@ -509,8 +509,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest CRPS
       mid_CRPS <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
@@ -564,8 +564,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the normalized CRPS and add it to the data frame
       tmp <- data.frame()
@@ -698,8 +698,8 @@ for (task_id in task_ids)
       CRPS <- results_dataset$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
 
       # Append the Method and CRPS to the result_row
       result_CRPS <- cbind(result_CRPS, CRPS)
@@ -762,8 +762,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest CRPS
       lowest_CRPS <- min(CRPS, na.rm=TRUE)
@@ -816,8 +816,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest CRPS
       mid_CRPS <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
@@ -871,8 +871,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the normalized CRPS and add it to the data frame
       tmp <- data.frame()
@@ -1006,8 +1006,8 @@ for (task_id in task_ids)
       CRPS <- results_dataset$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
 
       # Append the Method and CRPS to the result_row
       result_CRPS <- cbind(result_CRPS, CRPS)
@@ -1070,8 +1070,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest CRPS
       lowest_CRPS <- min(CRPS, na.rm=TRUE)
@@ -1124,8 +1124,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the lowest CRPS
       mid_CRPS <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
@@ -1179,8 +1179,8 @@ for (directory in list_directories) {
       CRPS <- table$CRPS
 
       CRPS <- ifelse(CRPS >= 0, CRPS, NA)
-      third_largest <- sort(CRPS, decreasing = TRUE, na.last=NA)[3]
-      CRPS[CRPS > 5 * third_largest] <- NA
+      
+      
       
       # Calculate the normalized CRPS and add it to the data frame
       tmp <- data.frame()

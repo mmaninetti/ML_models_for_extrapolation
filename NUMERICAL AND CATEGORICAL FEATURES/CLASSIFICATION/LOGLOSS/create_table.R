@@ -84,8 +84,7 @@ for (task_id in task_ids)
       logloss <- results_dataset$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
 
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
@@ -148,8 +147,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the lowest logloss
       lowest_logloss <- min(logloss, na.rm=TRUE)
@@ -202,8 +200,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the lowest logloss
       mid_logloss <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
@@ -257,8 +254,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the normalized logloss and add it to the data frame
       tmp <- data.frame()
@@ -394,8 +390,7 @@ for (task_id in task_ids)
       logloss <- results_dataset$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
 
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
@@ -458,8 +453,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
       
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the lowest logloss
       lowest_logloss <- min(logloss, na.rm=TRUE)
@@ -512,8 +506,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
       
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the lowest logloss
       mid_logloss <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
@@ -567,8 +560,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
       
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the normalized logloss and add it to the data frame
       tmp <- data.frame()
@@ -703,8 +695,7 @@ for (task_id in task_ids)
       logloss <- results_dataset$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
 
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
@@ -767,8 +758,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the lowest logloss
       lowest_logloss <- min(logloss, na.rm=TRUE)
@@ -821,8 +811,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the lowest logloss
       mid_logloss <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
@@ -876,8 +865,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the normalized logloss and add it to the data frame
       tmp <- data.frame()
@@ -1013,8 +1001,7 @@ for (task_id in task_ids)
       logloss <- results_dataset$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
 
       # Append the Method and logloss to the result_row
       result_logloss <- cbind(result_logloss, logloss)
@@ -1077,8 +1064,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the lowest logloss
       lowest_logloss <- min(logloss, na.rm=TRUE)
@@ -1131,8 +1117,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the lowest logloss
       mid_logloss <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
@@ -1186,8 +1171,7 @@ for (directory in list_directories) {
       logloss <- table$Log.Loss
 
       logloss <- ifelse(logloss >= 0, logloss, NA)
-      third_largest <- sort(logloss, decreasing = TRUE, na.last=NA)[3]
-      logloss[logloss > 5 * third_largest] <- NA
+      
       
       # Calculate the normalized logloss and add it to the data frame
       tmp <- data.frame()
