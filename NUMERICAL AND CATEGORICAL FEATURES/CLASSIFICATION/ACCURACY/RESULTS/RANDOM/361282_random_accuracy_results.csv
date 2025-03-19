@@ -1,0 +1,11 @@
+Method,Accuracy
+Constant,0.495
+MLP,0.6613333333333333
+ResNet,0.6606666666666666
+FTTrans,0.6656666666666666
+boosted_trees,0.6533333333333333
+rf,0.6633333333333333
+logistic_regression,0.644
+engression,0.649
+GAM,
+GP,
