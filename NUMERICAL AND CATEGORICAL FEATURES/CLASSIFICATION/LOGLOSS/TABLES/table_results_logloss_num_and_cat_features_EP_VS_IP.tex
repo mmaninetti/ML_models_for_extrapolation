@@ -1,0 +1,30 @@
+% latex table generated in R 4.1.1 by xtable 1.8-4 package
+% Sat Oct 12 11:11:25 2024
+\begin{table}[ht!]
+\centering
+\begingroup\footnotesize
+\begin{tabular}{llrllrlrlr}
+  \hline
+\hline
+task\_id & const. & log. reg. & RF & GBT & engression & MLP & ResNet & FT-Trans. & Avg diff \\ 
+  \hline
+361110 & \textbf{0.856} & 7.62 & 30.6 & 60.8 & 24.80 & 26.9 & 42.60 & 29.6 & 28.00 \\ 
+  361111 & \textbf{0.233} & 0.56 & 2.24 & 9.48 & 4.32 & 3.88 & 3.65 & 1.55 & 3.24 \\ 
+  361113 & \textbf{0.515} & 4.44 & 37.8 & 88 & 17.00 & 62.5 & 51.10 & 72.8 & 41.80 \\ 
+  361282 & 1.54 & 8.43 & \textbf{0.562} & 0.86 & 8.40 & 1 & 7.28 & 4.05 & 4.02 \\ 
+  361283 & 3.12 & -4.52 & -9.12 & \textbf{-10.2} & 1.92 & -8.01 & 32.50 & -8.22 & -0.32 \\ 
+  361285 & \textbf{0.434} & 2.44 & 3.55 & 4.44 & 12.00 & 3.26 & 19.50 & 4.14 & 6.22 \\ 
+  361286 & 3.44 & -0.21 & -0.883 & -0.86 & 1.68 & 4.58e-02 & 21.20 & \textbf{-1.23} & 2.90 \\ 
+   \hline
+Avg. diff & \textbf{1.45} & 2.68 & 9.25 & 21.8 & 10.00 & 12.8 & 25.40 & 14.7 & 12.30 \\ 
+  Median diff & \textbf{0.905} & 1.02 & 2.25 & 4.1 & 8.70 & 3.08 & 26.60 & 2.7 & 6.17 \\ 
+   \hline
+\hline
+\end{tabular}
+\endgroup
+\caption{Average relative difference of test logloss using EP VS using IP, in \%. 
+                  Best results are bold. 
+                  'Avg. diff.' denotes the average of each column.
+                  'Median diff.' denotes the median of each column.} 
+\label{TABLES/table_results_logloss_num_and_cat_features_EP_VS_IP}
+\end{table}
